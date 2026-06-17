@@ -12,6 +12,7 @@ import {
   saveDashboardSnapshot,
   updateUploadBatchStatus,
 } from "./supabase.js";
+import { buildDashboardData, sourceSignature as nodeSourceSignature } from "./dashboardBuilder.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -288,8 +289,8 @@ async function createApp() {
       });
 
       try {
-        const sourceSig = await sourceSignature(tempDir);
-        const data = await runPython(tempDir);
+        const sourceSig = await nodeSourceSignature(tempDir);
+        const data = await buildDashboardData(tempDir);
         const sourceDir = `Supabase upload batch ${uploadBatchId}`;
         await saveDashboardSnapshot({
           data,
