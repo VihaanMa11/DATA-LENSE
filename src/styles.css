@@ -753,6 +753,12 @@ tbody tr:nth-child(even) td {
   margin-bottom: 12px;
 }
 
+.info-box {
+  color: #0e5c6b;
+  border-color: #b9dfe6;
+  background: #f0fbfd;
+}
+
 .empty,
 .loading {
   display: grid;

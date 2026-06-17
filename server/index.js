@@ -12,6 +12,7 @@ const cachePath = path.join(__dirname, "dashboard-cache.json");
 const defaultSourceDir = "C:\\Users\\hp\\Downloads\\DataLense\\csv";
 const bundledPython = "C:\\Users\\hp\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe";
 const pythonScript = path.join(rootDir, "scripts", "build_dashboard_data.py");
+const isVercel = Boolean(process.env.VERCEL);
 
 let cache = {
   sourceDir: "",
@@ -108,7 +109,26 @@ function runPython(sourceDir) {
   });
 }
 
+function cloudDashboard(sourceDir = "Vercel cloud deployment") {
+  return {
+    company: "MLH GOBONGO PVT. LTD.",
+    sourceDir,
+    sourceSignature: "cloud-deployment",
+    cacheStatus: "cloud",
+    loadedAt: Date.now(),
+    cloudMode: true,
+    cloudMessage: "This Vercel deployment cannot read CSV/XLSX files from your local Windows folder. Run the app locally for folder auto-refresh, or connect a cloud data source.",
+    itemFacts: [],
+    ledgerFacts: [],
+    sourceProfile: [],
+  };
+}
+
 async function loadDashboard({ force = false } = {}) {
+  if (isVercel) {
+    return cloudDashboard();
+  }
+
   const { sourceDir } = await readConfig();
   if (!(await pathExists(sourceDir))) {
     const error = new Error(`Data source folder does not exist: ${sourceDir}`);
@@ -163,9 +183,8 @@ async function loadDashboard({ force = false } = {}) {
   };
 }
 
-async function main() {
+async function createApp() {
   const app = express();
-  const port = Number(process.env.PORT || 5173);
   app.use(express.json({ limit: "1mb" }));
 
   app.get("/api/source", async (_req, res, next) => {
@@ -173,7 +192,8 @@ async function main() {
       const config = await readConfig();
       res.json({
         ...config,
-        exists: await pathExists(config.sourceDir),
+        exists: !isVercel && await pathExists(config.sourceDir),
+        cloudMode: isVercel,
       });
     } catch (error) {
       next(error);
@@ -182,6 +202,12 @@ async function main() {
 
   app.post("/api/source", async (req, res, next) => {
     try {
+      if (isVercel) {
+        res.status(400).json({
+          error: "This cloud deployment cannot connect to a local Windows folder. Use the local app for folder sync or add cloud storage.",
+        });
+        return;
+      }
       const sourceDir = String(req.body?.sourceDir || "").trim();
       if (!sourceDir) {
         res.status(400).json({ error: "Enter a folder path containing the CSV/XLSX source files." });
@@ -211,11 +237,12 @@ async function main() {
   app.get("/api/status", async (_req, res, next) => {
     try {
       const { sourceDir } = await readConfig();
-      const exists = await pathExists(sourceDir);
+      const exists = !isVercel && await pathExists(sourceDir);
       res.json({
         sourceDir,
         exists,
-        sourceSignature: exists ? await sourceSignature(sourceDir) : "",
+        cloudMode: isVercel,
+        sourceSignature: exists ? await sourceSignature(sourceDir) : isVercel ? "cloud-deployment" : "",
         loadedAt: path.resolve(cache.sourceDir || "") === path.resolve(sourceDir) ? cache.loadedAt : 0,
       });
     } catch (error) {
@@ -236,30 +263,39 @@ async function main() {
     res.status(error.status || 500).json({ error: error.message || "Unexpected server error" });
   });
 
-  const distDir = path.join(rootDir, "dist");
-  const hasProductionBuild = await pathExists(path.join(distDir, "index.html"));
-  const useVite = process.env.DASHBOARD_DEV === "1" || !hasProductionBuild;
-  if (useVite) {
-    const { createServer } = await import("vite");
-    const vite = await createServer({
-      root: rootDir,
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static(distDir));
-    app.get(/.*/, (_req, res) => {
-      res.sendFile(path.join(distDir, "index.html"));
-    });
+  if (!isVercel) {
+    const distDir = path.join(rootDir, "dist");
+    const hasProductionBuild = await pathExists(path.join(distDir, "index.html"));
+    const useVite = process.env.DASHBOARD_DEV === "1" || !hasProductionBuild;
+    if (useVite) {
+      const { createServer } = await import("vite");
+      const vite = await createServer({
+        root: rootDir,
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      app.use(express.static(distDir));
+      app.get(/.*/, (_req, res) => {
+        res.sendFile(path.join(distDir, "index.html"));
+      });
+    }
   }
 
-  app.listen(port, () => {
+  return app;
+}
+
+const appPromise = createApp();
+
+if (!isVercel) {
+  const port = Number(process.env.PORT || 5173);
+  appPromise.then((app) => app.listen(port, () => {
     console.log(`MIS dashboard app running at http://localhost:${port}`);
+  })).catch((error) => {
+    console.error(error);
+    process.exit(1);
   });
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+export default appPromise;

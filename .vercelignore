@@ -1,7 +1,6 @@
 node_modules/
 dist/
 outputs/
-.vercel/
 server/*.log
 server.out.log
 server.err.log

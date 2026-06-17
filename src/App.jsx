@@ -600,6 +600,7 @@ export default function App() {
 
         <main className="main">
           {error && <div className="error-box">{error}</div>}
+          {data?.cloudMode && <div className="error-box info-box">{data.cloudMessage}</div>}
           <div className="page-head">
             <div>
               <h1>MIS Admin Dashboard</h1>
