@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
+import { hasSupabaseConfig, loadDashboardSnapshot } from "./supabase.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -117,7 +118,9 @@ function cloudDashboard(sourceDir = "Vercel cloud deployment") {
     cacheStatus: "cloud",
     loadedAt: Date.now(),
     cloudMode: true,
-    cloudMessage: "This Vercel deployment cannot read CSV/XLSX files from your local Windows folder. Run the app locally for folder auto-refresh, or connect a cloud data source.",
+    cloudMessage: hasSupabaseConfig()
+      ? "Supabase is configured, but no active dashboard snapshot was found. Run the Supabase upload script after creating the table."
+      : "This Vercel deployment cannot read CSV/XLSX files from your local Windows folder. Add Supabase environment variables and upload a dashboard snapshot for cloud data.",
     itemFacts: [],
     ledgerFacts: [],
     sourceProfile: [],
@@ -126,7 +129,8 @@ function cloudDashboard(sourceDir = "Vercel cloud deployment") {
 
 async function loadDashboard({ force = false } = {}) {
   if (isVercel) {
-    return cloudDashboard();
+    const snapshot = await loadDashboardSnapshot();
+    return snapshot || cloudDashboard(hasSupabaseConfig() ? "Supabase dashboard snapshot" : "Vercel cloud deployment");
   }
 
   const { sourceDir } = await readConfig();
@@ -194,6 +198,7 @@ async function createApp() {
         ...config,
         exists: !isVercel && await pathExists(config.sourceDir),
         cloudMode: isVercel,
+        supabaseConfigured: hasSupabaseConfig(),
       });
     } catch (error) {
       next(error);
@@ -242,7 +247,8 @@ async function createApp() {
         sourceDir,
         exists,
         cloudMode: isVercel,
-        sourceSignature: exists ? await sourceSignature(sourceDir) : isVercel ? "cloud-deployment" : "",
+        supabaseConfigured: hasSupabaseConfig(),
+        sourceSignature: exists ? await sourceSignature(sourceDir) : isVercel ? hasSupabaseConfig() ? "supabase-configured" : "cloud-deployment" : "",
         loadedAt: path.resolve(cache.sourceDir || "") === path.resolve(sourceDir) ? cache.loadedAt : 0,
       });
     } catch (error) {

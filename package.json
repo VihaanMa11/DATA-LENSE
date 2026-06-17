@@ -6,15 +6,16 @@
   "scripts": {
     "dev": "node server/index.js",
     "build": "vite build",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "supabase:upload": "node scripts/upload_dashboard_to_supabase.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
     "@vitejs/plugin-react": "^5.1.1",
-    "vite": "^7.2.7",
-    "typescript": "^5.9.3",
+    "express": "^5.2.1",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "express": "^5.2.1"
-  },
-  "devDependencies": {}
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
+  }
 }
