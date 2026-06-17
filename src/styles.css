@@ -167,6 +167,15 @@ select:focus-visible {
   border-color: var(--line);
 }
 
+.upload-button {
+  background: var(--teal);
+  border-color: rgba(14, 92, 107, 0.35);
+}
+
+.upload-button:hover {
+  box-shadow: 0 10px 22px rgba(14, 92, 107, 0.18);
+}
+
 .top-button:disabled {
   opacity: 0.55;
   cursor: progress;
@@ -207,6 +216,56 @@ select:focus-visible {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 10px;
+}
+
+.upload-popover {
+  width: min(560px, 88vw);
+}
+
+.file-input {
+  cursor: pointer;
+}
+
+.upload-list {
+  display: grid;
+  gap: 6px;
+  max-height: 190px;
+  overflow: auto;
+  margin-top: 10px;
+}
+
+.upload-file {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-soft);
+  font-size: 11px;
+}
+
+.upload-file span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-file b {
+  color: var(--teal);
+  font-size: 10px;
+}
+
+.upload-message {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: #fff7df;
+  color: #8a6100;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .layout {

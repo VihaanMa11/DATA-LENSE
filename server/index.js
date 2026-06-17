@@ -1,9 +1,17 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import { hasSupabaseConfig, loadDashboardSnapshot } from "./supabase.js";
+import multer from "multer";
+import {
+  createUploadedFileBatch,
+  hasSupabaseConfig,
+  loadDashboardSnapshot,
+  saveDashboardSnapshot,
+  updateUploadBatchStatus,
+} from "./supabase.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,6 +22,13 @@ const defaultSourceDir = "C:\\Users\\hp\\Downloads\\DataLense\\csv";
 const bundledPython = "C:\\Users\\hp\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe";
 const pythonScript = path.join(rootDir, "scripts", "build_dashboard_data.py");
 const isVercel = Boolean(process.env.VERCEL);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    files: 20,
+    fileSize: 25 * 1024 * 1024,
+  },
+});
 
 let cache = {
   sourceDir: "",
@@ -108,6 +123,14 @@ function runPython(sourceDir) {
       },
     );
   });
+}
+
+function cleanUploadName(filename) {
+  return path.basename(String(filename || "").replace(/\\/g, "/"));
+}
+
+function isAllowedUpload(filename) {
+  return /\.(csv|xlsx|xls)$/i.test(filename);
 }
 
 function cloudDashboard(sourceDir = "Vercel cloud deployment") {
@@ -228,6 +251,82 @@ async function createApp() {
       res.json({ sourceDir, data });
     } catch (error) {
       next(error);
+    }
+  });
+
+  app.post("/api/upload-dashboard", upload.array("files", 20), async (req, res, next) => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "datalence-upload-"));
+    try {
+      if (!hasSupabaseConfig()) {
+        res.status(400).json({
+          error: "Supabase is not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY before uploading files.",
+        });
+        return;
+      }
+
+      const files = req.files || [];
+      if (!files.length) {
+        res.status(400).json({ error: "Choose one or more CSV/XLSX files to upload." });
+        return;
+      }
+
+      const invalid = files.find((file) => !isAllowedUpload(file.originalname));
+      if (invalid) {
+        res.status(400).json({ error: `Unsupported file type: ${invalid.originalname}` });
+        return;
+      }
+
+      for (const file of files) {
+        const filename = cleanUploadName(file.originalname);
+        await fs.writeFile(path.join(tempDir, filename), file.buffer);
+      }
+
+      const { uploadBatchId } = await createUploadedFileBatch({
+        files,
+        status: "uploaded",
+        message: "Dashboard source files uploaded. Processing started.",
+      });
+
+      try {
+        const sourceSig = await sourceSignature(tempDir);
+        const data = await runPython(tempDir);
+        const sourceDir = `Supabase upload batch ${uploadBatchId}`;
+        await saveDashboardSnapshot({
+          data,
+          sourceDir,
+          sourceSignature: sourceSig,
+          uploadBatchId,
+        });
+        await updateUploadBatchStatus({
+          uploadBatchId,
+          status: "processed",
+          message: "Dashboard files uploaded and parsed successfully.",
+        });
+        res.json({
+          ...data,
+          sourceDir,
+          sourceSignature: sourceSig,
+          cacheStatus: "supabase-uploaded",
+          supabaseMode: true,
+          uploadBatchId,
+        });
+      } catch (processingError) {
+        await updateUploadBatchStatus({
+          uploadBatchId,
+          status: "uploaded",
+          message: `Files are stored in Supabase, but processing failed: ${processingError.message}`,
+        });
+        res.status(202).json({
+          uploadBatchId,
+          uploaded: true,
+          processed: false,
+          message: `Files are stored in Supabase, but processing failed: ${processingError.message}`,
+        });
+      }
+    } catch (error) {
+      next(error);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
     }
   });
 

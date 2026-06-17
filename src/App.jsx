@@ -305,6 +305,80 @@ function DataSourcePanel({ data, reload, setData, setError }) {
   );
 }
 
+function UploadFilesPanel({ reload, setData, setError }) {
+  const [open, setOpen] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function uploadFiles() {
+    setError("");
+    setMessage("");
+    if (!files.length) {
+      setMessage("Choose CSV/XLSX files first.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const form = new FormData();
+      files.forEach((file) => form.append("files", file));
+      const response = await fetch("/api/upload-dashboard", {
+        method: "POST",
+        body: form,
+      });
+      const payload = await response.json();
+      if (!response.ok && response.status !== 202) {
+        throw new Error(payload.error || "Upload failed");
+      }
+      if (payload.processed === false) {
+        setMessage(payload.message || "Files uploaded to Supabase. Processing is pending.");
+        return;
+      }
+      setData(payload);
+      setOpen(false);
+      setFiles([]);
+      reload(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="source-shell">
+      <button className="top-button upload-button" onClick={() => setOpen((value) => !value)}>Upload Files</button>
+      {open && (
+        <div className="source-popover upload-popover">
+          <div className="source-title">Upload CSV / Excel Files</div>
+          <div className="source-copy">Upload the accounting export files. The backend stores the files in Supabase, then updates the active dashboard snapshot when processing succeeds.</div>
+          <input
+            className="file-input"
+            type="file"
+            multiple
+            accept=".csv,.xlsx,.xls"
+            onChange={(event) => setFiles([...event.target.files])}
+          />
+          <div className="upload-list">
+            {files.length ? files.map((file) => (
+              <div className="upload-file" key={`${file.name}-${file.size}`}>
+                <span>{file.name}</span>
+                <b>{(file.size / 1024 / 1024).toFixed(2)} MB</b>
+              </div>
+            )) : <div className="source-copy">No files selected.</div>}
+          </div>
+          {message && <div className="upload-message">{message}</div>}
+          <div className="source-actions">
+            <button className="top-button muted" onClick={() => setOpen(false)}>Cancel</button>
+            <button className="top-button" onClick={uploadFiles} disabled={uploading}>{uploading ? "Uploading..." : "Upload"}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Table({ headers, rows }) {
   return (
     <div className="table-wrap">
@@ -583,6 +657,7 @@ export default function App() {
           <span className="pill live">{data?.cacheStatus === "hit" ? "Live cache" : "Live refreshed"}</span>
           <span className="pill">FY 2025-26</span>
           {data && <span className="pill source-pill" title={data.sourceDir}>{data.sourceDir}</span>}
+          {data && <UploadFilesPanel reload={load} setData={setData} setError={setError} />}
           {data && <DataSourcePanel data={data} reload={load} setData={setData} setError={setError} />}
         </div>
       </header>

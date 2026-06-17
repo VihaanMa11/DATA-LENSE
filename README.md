@@ -26,6 +26,8 @@ Run `supabase/schema.sql` once in the Supabase SQL editor, then set these enviro
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_DASHBOARD_TABLE=dashboard_snapshots
+SUPABASE_UPLOAD_BATCH_TABLE=dashboard_upload_batches
+SUPABASE_UPLOAD_FILE_TABLE=dashboard_uploaded_files
 ```
 
 Upload the current local CSV/XLSX dashboard snapshot:
@@ -35,3 +37,5 @@ npm.cmd run supabase:upload -- --source "C:\Users\hp\Downloads\DataLense\csv"
 ```
 
 The Vercel deployment reads the active Supabase snapshot. The local app still supports direct folder refresh.
+
+You can also upload source files directly from the dashboard with **Upload Files**. The backend stores the uploaded files in Supabase, records an upload batch, and updates the active dashboard snapshot after parsing succeeds.
