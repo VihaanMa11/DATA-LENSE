@@ -1,0 +1,13 @@
+node_modules/
+dist/
+outputs/
+server/*.log
+server.out.log
+server.err.log
+server/dashboard-cache.json
+server/dashboard-data.tmp.json
+server/data-source.json
+scripts/__pycache__/
+*.pyc
+.env
+.env.*
