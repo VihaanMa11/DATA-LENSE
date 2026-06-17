@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-const COLORS = ["#f36f21", "#0e5c6b", "#21c777", "#efbd2f", "#ef3454", "#20a6b8", "#7c5cff", "#ff9b54", "#98a2b3", "#0f766e"];
+const COLORS = ["#1976d2", "#2fd083", "#f14f64", "#f6a343", "#6d6ff2", "#20a6b8", "#7c5cff", "#ff9b54", "#98a2b3", "#0f766e"];
 const MONTH_LABELS = {
   "2025-04": "Apr", "2025-05": "May", "2025-06": "Jun", "2025-07": "Jul", "2025-08": "Aug", "2025-09": "Sep",
   "2025-10": "Oct", "2025-11": "Nov", "2025-12": "Dec", "2026-01": "Jan", "2026-02": "Feb", "2026-03": "Mar",
@@ -22,16 +22,16 @@ const PERIOD_MONTHS = {
   ASOF: MONTH_ORDER,
 };
 const NAV = [
-  ["executive", "EX", "Executive Dashboard"],
-  ["parties", "TP", "Top Parties"],
-  ["segments", "SG", "Segments"],
-  ["state", "ST", "State Wise"],
-  ["items", "IG", "Item Groups"],
-  ["cash", "CB", "Cash & Bank"],
-  ["transport", "TR", "Transport"],
-  ["uom", "UO", "UOM & Stock"],
-  ["adjustments", "AD", "Adjustments"],
-  ["sources", "DS", "Data Sources"],
+  ["executive", "bars", "CEO View"],
+  ["parties", "circle", "Party Analysis"],
+  ["segments", "circle", "Segment MIS"],
+  ["state", "circle", "State MIS"],
+  ["items", "circle", "Item Groups"],
+  ["cash", "circle", "Cash & Bank"],
+  ["transport", "circle", "Transport"],
+  ["uom", "circle", "UOM & Stock"],
+  ["adjustments", "node", "Adjustments"],
+  ["sources", "stack", "Data Sources"],
 ];
 
 function money(value) {
@@ -124,19 +124,20 @@ function SelectFilter({ label, value, values, onChange }) {
   );
 }
 
-function Kpi({ title, value, meta, variant = "" }) {
+function Kpi({ title, value, meta, variant = "", icon = "bars", tone = "#1976d2" }) {
+  const wave = "M0,48 C18,18 34,18 52,48 C70,78 88,78 106,48 C124,18 142,18 160,48 C178,78 196,78 214,48 C232,18 250,18 268,48";
   return (
-    <div className={`kpi ${variant}`}>
+    <div className={`kpi ${variant}`} style={{ "--tone": tone }}>
       <div className="kpi-copy">
+        <div className={`k-icon ${icon}`} aria-hidden="true" />
         <div className="k-label">{title}</div>
         <div className="k-value">{value}</div>
         <div className="k-meta">{meta}</div>
       </div>
-      <div className="k-spark" aria-hidden="true">
-        {[28, 52, 38, 72, 44, 88, 58, 76].map((height, index) => (
-          <span key={index} style={{ height: `${height}%` }} />
-        ))}
-      </div>
+      <svg className="k-wave" viewBox="0 0 268 92" aria-hidden="true">
+        <path d={`${wave} L268,92 L0,92 Z`} />
+        <path d={wave} />
+      </svg>
     </div>
   );
 }
@@ -161,9 +162,50 @@ function Card({ title, sub, badge, badgeClass = "", children }) {
           <div className="card-title">{title}</div>
           <div className="card-sub">{sub}</div>
         </div>
-        <span className={`badge ${badgeClass}`}>{badge}</span>
+        {badge && <span className={`badge ${badgeClass}`}>{badge}</span>}
       </div>
       {children}
+    </div>
+  );
+}
+
+function ToggleSwitch({ checked, onChange }) {
+  return (
+    <label className="switch-control">
+      <span>Net</span>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <i aria-hidden="true" />
+      <span>Gross</span>
+    </label>
+  );
+}
+
+function Highlights({ items }) {
+  return (
+    <div className="timeline">
+      {items.map((item, index) => (
+        <div className="timeline-row" key={item.label}>
+          <span className={`dot d${index % 4}`} />
+          <div>
+            <p>{item.label}</p>
+            <h6>{item.value}</h6>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RatioList({ rows }) {
+  return (
+    <div className="ratio-list">
+      {rows.map(([label, value], index) => (
+        <div className="ratio-row" key={label}>
+          <span className="ratio-icon">{index + 1}</span>
+          <span>{label}</span>
+          <b>{value}</b>
+        </div>
+      ))}
     </div>
   );
 }
@@ -487,22 +529,65 @@ function Dashboard({ data, filters }) {
     <>
       {active === "executive" && (
         <section className="section active">
-          <SectionHead code="EX" title="Executive Dashboard" sub={`${periodLabel} - all amounts shown in INR Lakhs`} />
-          <div className="kpis">
-            <Kpi title="Net Sales" value={money(totals.netSales)} meta={`${num(totals.salesLines.length)} sales lines`} variant="green" />
-            <Kpi title="Net Purchases" value={money(totals.netPurchases)} meta={`${num(totals.purchaseLines.length)} purchase lines`} variant="blue" />
-            <Kpi title="Receipts" value={money(totals.receipts)} meta="Voucher-row debit convention" variant="cyan" />
-            <Kpi title="Payments" value={money(totals.payments)} meta="Voucher-row credit convention" variant="yellow" />
-            <Kpi title="Net Cash Movement" value={money(totals.netCash)} meta="Receipts less payments" variant={totals.netCash >= 0 ? "green" : "red"} />
-            <Kpi title="Sales Return Rate" value={pct(totals.salesReturns, totals.grossSales)} meta={`${money(totals.salesReturns)} returns`} variant="red" />
+          <SectionHead code="CEO" title="CEO View" sub={`${periodLabel} - all amounts shown in INR Lakhs`} />
+          <div className="kpis reference-kpis">
+            <Kpi title="Total Sales" value={money(totals.netSales)} meta={`${num(totals.salesLines.length)} sales lines`} tone="#1976d2" />
+            <Kpi title="Total Receipt" value={money(totals.receipts)} meta="Voucher-row debit convention" icon="money" tone="#2fd083" />
+            <Kpi title="Total Purchase" value={money(totals.netPurchases)} meta={`${num(totals.purchaseLines.length)} purchase lines`} icon="box" tone="#f14f64" />
+            <Kpi title="Total Payment" value={money(totals.payments)} meta="Voucher-row credit convention" icon="card" tone="#f6a343" />
           </div>
-          <div className="grid2">
-            <Card title="Monthly MIS Trend" sub="Sales, purchases, receipts and payments" badge="Trend"><LineChart series={monthlySeries} /></Card>
-            <Card title="Transaction Mix" sub="Share of key MIS flows" badge="Mix" badgeClass="green"><DonutChart rows={[["Net Sales", totals.netSales], ["Net Purchases", totals.netPurchases], ["Receipts", totals.receipts], ["Payments", totals.payments]]} /></Card>
-          </div>
+          <Card title="Sales Register Statistics" sub="" badge="">
+            <div className="stat-strip">
+              <div>
+                <span className="stat-icon trend" />
+                <b>{money(totals.grossSales - totals.salesReturns)}</b>
+                <p>Sales - Credit Note(Net)</p>
+              </div>
+              <div>
+                <span className="stat-icon cube" />
+                <b>{money(totals.grossPurchases - totals.purchaseReturns)}</b>
+                <p>Purchase - Debit Note(Net)</p>
+              </div>
+              <div>
+                <span className="stat-icon cost">$</span>
+                <b>{money(Math.max(totals.netPurchases, 0))}</b>
+                <p>Cost</p>
+              </div>
+            </div>
+          </Card>
           <div className="grid31">
-            <Card title="Top 10 Customers" sub="Net sales after sales returns" badge="Top 10" badgeClass="blue"><BarChart rows={topCustomers.slice(0, 10)} /></Card>
-            <Card title="Customer Revenue Share" sub="Progress bars" badge="Share" badgeClass="purple"><BarChart rows={topCustomers.slice(0, 10)} /></Card>
+            <Card title="Sales vs Purchase" sub="" badge=""><LineChart series={monthlySeries.slice(0, 2)} /></Card>
+            <Card title="Highlights" sub="" badge="">
+              <Highlights items={[
+                { label: "Last Sales on current period", value: `Sales Amount: ${money(totals.netSales / Math.max(totals.salesLines.length, 1))}` },
+                { label: "Last Receipt on current period", value: `Receipt Amount: ${money(totals.receipts / Math.max(filtered.ledgers.length, 1))}` },
+                { label: "Last Purchase on current period", value: `Purchase Amount: ${money(totals.netPurchases / Math.max(totals.purchaseLines.length, 1))}` },
+                { label: "Last Payment on current period", value: `Payment Amount: ${money(totals.payments / Math.max(filtered.ledgers.length, 1))}` },
+              ]} />
+            </Card>
+          </div>
+          <div className="grid3 reference-lower">
+            <Card title="Cash & Bank Summary" sub="" badge="">
+              <div className="cash-summary">
+                <p>Cash Balance</p>
+                <h3>{money(Math.max(totals.netCash, 0))} Dr</h3>
+                <p>Bank Balance</p>
+                <h3>{money(Math.abs(totals.netCash))} {totals.netCash >= 0 ? "Dr" : "Cr"}</h3>
+              </div>
+            </Card>
+            <Card title="Receivable vs Payable" sub="" badge="">
+              <DonutChart rows={[["Receivable", totals.netSales], ["Payable", totals.netPurchases]]} />
+            </Card>
+            <Card title="Ratio Analysis - Principal Groups" sub="" badge="">
+              <RatioList rows={[
+                ["Working Capital", money(totals.netCash)],
+                ["Sundry Debtors", money(totals.netSales)],
+                ["Sundry Creditors", money(totals.netPurchases)],
+                ["Sales Accounts", money(totals.grossSales)],
+                ["Purchase Accounts", money(totals.grossPurchases)],
+                ["Net Profit", money(totals.netSales - totals.netPurchases)],
+              ]} />
+            </Card>
           </div>
         </section>
       )}
@@ -631,6 +716,8 @@ export default function App() {
     itemGroup: "All",
     search: "",
   });
+  const [grossMode, setGrossMode] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const filterOptions = useMemo(() => {
     if (!data) return { txs: [], parties: [], states: [], groups: [] };
@@ -642,68 +729,100 @@ export default function App() {
   }, [data]);
 
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+  const activeNav = NAV.find(([id]) => id === filters.section);
+  const companyName = data?.company || "MLH GOBONGO PVT. LTD.";
+  const refreshLabel = data?.generatedAt ? `Last refresh ${data.generatedAt}` : "Waiting for connected data";
+  const periodRange = data?.periodLabel || "FY 2025-26";
 
   return (
-    <div>
-      <header className="topbar">
+    <div className={`app-shell ${mobileNavOpen ? "nav-open" : ""}`}>
+      <aside className="sidebar">
         <div className="brand">
-          <div className="logo">MIS</div>
-          <div>
-            <div className="brand-title">MLH GOBONGO PVT. LTD.</div>
-            <div className="brand-sub">Live MIS + Accounting Analytics Dashboard</div>
-          </div>
+          <div className="logo">DL</div>
+          <div className="brand-title">DATA LENSE MLH</div>
         </div>
-        <div className="top-actions">
-          <span className="pill live">{data?.cacheStatus === "hit" ? "Live cache" : "Live refreshed"}</span>
-          <span className="pill">FY 2025-26</span>
-          {data && <span className="pill source-pill" title={data.sourceDir}>{data.sourceDir}</span>}
-          {data && <UploadFilesPanel reload={load} setData={setData} setError={setError} />}
-          {data && <DataSourcePanel data={data} reload={load} setData={setData} setError={setError} />}
-        </div>
-      </header>
-
-      <div className="layout">
-        <aside className="sidebar">
-          <div className="nav-title">Dashboard</div>
-          {NAV.map(([id, code, label]) => (
-            <button key={id} className={`nav-btn ${filters.section === id ? "active" : ""}`} onClick={() => updateFilter("section", id)}>
-              <span className="nav-ico">{code}</span>
+        <div className="nav-block">
+          <button className="nav-group">
+            <span className="nav-ico home" />
+            <span>MIS Reports</span>
+            <span className="chev">v</span>
+          </button>
+          {NAV.slice(0, 8).map(([id, code, label]) => (
+            <button key={id} className={`nav-btn ${filters.section === id ? "active" : ""}`} onClick={() => { updateFilter("section", id); setMobileNavOpen(false); }}>
+              <span className={`nav-dot ${code}`} />
               <span>{label}</span>
             </button>
           ))}
-        </aside>
+          {NAV.slice(8).map(([id, code, label]) => (
+            <button key={id} className={`nav-group ${filters.section === id ? "active" : ""}`} onClick={() => { updateFilter("section", id); setMobileNavOpen(false); }}>
+              <span className={`nav-ico ${code}`} />
+              <span>{label}</span>
+              <span className="chev">&gt;</span>
+            </button>
+          ))}
+        </div>
+        <div className="nav-title">Core Reports</div>
+        {["Sales", "Purchase", "Inventory", "Accounts", "Financial Statement", "Statutory Reports", "Exception Reports"].map((label) => (
+          <button className="nav-group report" key={label}>
+            <span className="nav-ico report" />
+            <span>{label}</span>
+            <span className="chev">&gt;</span>
+          </button>
+        ))}
+      </aside>
+      <button className="nav-scrim" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} />
+
+      <div className="content-shell">
+        <header className="topbar">
+          <div className="company-line">
+            <button className="hamburger" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">=</button>
+            <div>
+              <div className="company-title">{companyName} <button className="tiny-select">live</button></div>
+              <div className="company-meta">{refreshLabel} <span /> {periodRange}</div>
+            </div>
+          </div>
+          <div className="top-actions">
+            <button className="digital-ceo" onClick={() => load(true)} disabled={loading}>Sync Data</button>
+            <button className="icon-btn search-action" aria-label="Search" />
+            <button className="icon-btn" aria-label="Notifications">!</button>
+            <div className="user-chip"><span>Demo<br />User</span><i /></div>
+          </div>
+        </header>
 
         <main className="main">
           {error && <div className="error-box">{error}</div>}
           {data?.cloudMode && <div className="error-box info-box">{data.cloudMessage}</div>}
           <div className="page-head">
             <div>
-              <h1>MIS Dashboard</h1>
-              <div className="breadcrumbs">Dashboard / MIS Dashboard</div>
+              <h1>{activeNav?.[2] || "CEO View"}</h1>
+              <div className="breadcrumbs">MIS / {activeNav?.[2] || "CEO View"}</div>
             </div>
-            <div className="env-tabs" aria-label="Dashboard mode">
-              <span className="env-tab active">Production</span>
-              <span className="env-tab">Staging</span>
-              <span className="env-tab">Development</span>
+            <div className="page-tools">
+              <button className="export-btn"><span className="desktop-label">Export as PDF</span><span className="mobile-label">Export</span></button>
             </div>
           </div>
-          <div className="periodbar">
-            <span className="bar-label-static">Period</span>
-            {PERIODS.map(([value, label]) => <button key={value} className={`period ${filters.period === value ? "active" : ""}`} onClick={() => updateFilter("period", value)}>{label}</button>)}
+          <div className="control-row">
+            <label className="searchbox">
+              <span className="search-glyph" aria-hidden="true" />
+              <input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Search reports, parties, items..." />
+            </label>
+            <ToggleSwitch checked={grossMode} onChange={setGrossMode} />
+            <select className="period-select" value={filters.period} onChange={(event) => updateFilter("period", event.target.value)}>
+              {PERIODS.map(([value, label]) => <option key={value} value={value}>{label === "Full Year" ? "All Years" : label}</option>)}
+            </select>
           </div>
 
-          <div className="downloadbar">
+          <details className="downloadbar advanced-filters">
+            <summary>Advanced filters</summary>
             <div className="filter-grid">
               <SelectFilter label="Transaction" value={filters.tx} values={filterOptions.txs} onChange={(value) => updateFilter("tx", value)} />
               <SelectFilter label="Party / Account" value={filters.party} values={filterOptions.parties} onChange={(value) => updateFilter("party", value)} />
               <SelectFilter label="State" value={filters.state} values={filterOptions.states} onChange={(value) => updateFilter("state", value)} />
               <SelectFilter label="Item Group" value={filters.itemGroup} values={filterOptions.groups} onChange={(value) => updateFilter("itemGroup", value)} />
-              <label>
-                Search
-                <input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Party, item, voucher" />
-              </label>
+              {data && <UploadFilesPanel reload={load} setData={setData} setError={setError} />}
+              {data && <DataSourcePanel data={data} reload={load} setData={setData} setError={setError} />}
             </div>
-          </div>
+          </details>
 
           {loading && !data && <div className="loading">Loading dashboard data...</div>}
           {data && <Dashboard data={data} filters={filters} />}
