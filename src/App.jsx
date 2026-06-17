@@ -678,8 +678,8 @@ export default function App() {
           {data?.cloudMode && <div className="error-box info-box">{data.cloudMessage}</div>}
           <div className="page-head">
             <div>
-              <h1>MIS Admin Dashboard</h1>
-              <div className="breadcrumbs">Dashboard / MIS Admin Dashboard</div>
+              <h1>MIS Dashboard</h1>
+              <div className="breadcrumbs">Dashboard / MIS Dashboard</div>
             </div>
             <div className="env-tabs" aria-label="Dashboard mode">
               <span className="env-tab active">Production</span>
