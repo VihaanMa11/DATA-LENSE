@@ -4,13 +4,17 @@ const tableName = process.env.SUPABASE_DASHBOARD_TABLE || "dashboard_snapshots";
 const uploadBatchTable = process.env.SUPABASE_UPLOAD_BATCH_TABLE || "dashboard_upload_batches";
 const uploadFileTable = process.env.SUPABASE_UPLOAD_FILE_TABLE || "dashboard_uploaded_files";
 
+function supabaseProjectUrl() {
+  return String(process.env.SUPABASE_URL || "").replace(/\/rest\/v1\/?$/i, "").replace(/\/$/, "");
+}
+
 export function hasSupabaseConfig() {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(supabaseProjectUrl() && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
 export function getSupabaseClient() {
   if (!hasSupabaseConfig()) return null;
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+  return createClient(supabaseProjectUrl(), process.env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -32,6 +36,13 @@ export async function loadDashboardSnapshot() {
     .maybeSingle();
 
   if (error) {
+    if (
+      error.code === "PGRST205" ||
+      error.code === "42P01" ||
+      /could not find the table|does not exist/i.test(error.message || "")
+    ) {
+      return null;
+    }
     throw new Error(`Supabase dashboard read failed: ${error.message}`);
   }
 
