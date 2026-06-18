@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
-
-const COLORS = ["#1976d2", "#2fd083", "#f14f64", "#f6a343", "#6d6ff2", "#20a6b8", "#7c5cff", "#ff9b54", "#98a2b3", "#0f766e"];
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { BarChart, DonutChart, LineChart } from "./components/InteractiveCharts.jsx";
+import { LoginScreen } from "./components/LoginScreen.jsx";
+import { getSession, login, logout } from "./authClient.js";
 const MONTH_LABELS = {
   "2025-04": "Apr", "2025-05": "May", "2025-06": "Jun", "2025-07": "Jul", "2025-08": "Aug", "2025-09": "Sep",
   "2025-10": "Oct", "2025-11": "Nov", "2025-12": "Dec", "2026-01": "Jan", "2026-02": "Feb", "2026-03": "Mar",
@@ -70,7 +71,7 @@ function monthsForPeriod(period) {
   return PERIOD_MONTHS[period] || [period];
 }
 
-function useDashboardData() {
+function useDashboardData(onUnauthorized) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -81,6 +82,10 @@ function useDashboardData() {
     try {
       const response = await fetch(force ? "/api/refresh" : "/api/dashboard", { method: force ? "POST" : "GET" });
       const payload = await response.json();
+      if (response.status === 401) {
+        onUnauthorized();
+        return;
+      }
       if (!response.ok) throw new Error(payload.error || "Unable to load dashboard data");
       setData(payload);
     } catch (err) {
@@ -98,8 +103,15 @@ function useDashboardData() {
     const id = window.setInterval(() => {
       if (document.hidden) return;
       fetch("/api/status")
-        .then((response) => response.json())
+        .then((response) => {
+          if (response.status === 401) {
+            onUnauthorized();
+            return null;
+          }
+          return response.json();
+        })
         .then((payload) => {
+          if (!payload) return;
           if (payload.sourceSignature && data?.sourceSignature && payload.sourceSignature !== data.sourceSignature) {
             load(false);
           }
@@ -107,7 +119,7 @@ function useDashboardData() {
         .catch(() => {});
     }, 15000);
     return () => window.clearInterval(id);
-  }, [data?.sourceSignature]);
+  }, [data?.sourceSignature, onUnauthorized]);
 
   return { data, error, loading, load, setData, setError };
 }
@@ -210,103 +222,24 @@ function RatioList({ rows }) {
   );
 }
 
-function BarChart({ rows }) {
-  if (!rows.length) return <div className="empty">No data for current filters</div>;
-  const max = Math.max(...rows.map((row) => Math.abs(row[1])), 1);
-  return (
-    <div className="bar-chart">
-      {rows.map(([label, value], index) => (
-        <div className="bar-row" key={`${label}-${index}`}>
-          <div className="bar-label" title={label}>{label}</div>
-          <div className="bar-track">
-            <div className="bar-fill" style={{ width: `${Math.max(1, Math.abs(value) / max * 100)}%`, background: COLORS[index % COLORS.length] }} />
-          </div>
-          <div className="bar-value">{money(value)}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DonutChart({ rows }) {
-  if (!rows.length) return <div className="empty">No data for current filters</div>;
-  const total = rows.reduce((acc, row) => acc + Math.abs(row[1]), 0) || 1;
-  let start = -90;
-  const cx = 145;
-  const cy = 124;
-  const radius = 82;
-  const slices = rows.slice(0, 8).map((row, index) => {
-    const angle = Math.abs(row[1]) / total * 360;
-    const end = start + angle;
-    const large = angle > 180 ? 1 : 0;
-    const sx = cx + radius * Math.cos(Math.PI * start / 180);
-    const sy = cy + radius * Math.sin(Math.PI * start / 180);
-    const ex = cx + radius * Math.cos(Math.PI * end / 180);
-    const ey = cy + radius * Math.sin(Math.PI * end / 180);
-    start = end;
-    return <path key={row[0]} d={`M ${cx} ${cy} L ${sx} ${sy} A ${radius} ${radius} 0 ${large} 1 ${ex} ${ey} Z`} fill={COLORS[index % COLORS.length]} opacity=".92" />;
-  });
-
-  return (
-    <svg className="donut-svg" viewBox="0 0 620 250" role="img">
-      {slices}
-      <circle cx={cx} cy={cy} r="50" fill="var(--panel)" />
-      <text x={cx} y={cy - 2} textAnchor="middle" className="svg-label">Total</text>
-      <text x={cx} y={cy + 16} textAnchor="middle" className="tick">{money(total)}</text>
-      {rows.slice(0, 8).map(([label, value], index) => (
-        <g key={label}>
-          <rect x="305" y={34 + index * 22} width="9" height="9" rx="2" fill={COLORS[index % COLORS.length]} />
-          <text x="322" y={42 + index * 22} className="svg-label">{label.slice(0, 30)}</text>
-          <text x="590" y={42 + index * 22} className="tick" textAnchor="end">{pct(Math.abs(value), total)}</text>
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-function LineChart({ series }) {
-  const width = 760;
-  const height = 245;
-  const left = 44;
-  const right = 18;
-  const top = 18;
-  const bottom = 34;
-  const allValues = series.flatMap((item) => item.values);
-  const max = Math.max(...allValues, 1);
-  const xStep = (width - left - right) / (MONTH_ORDER.length - 1);
-  const y = (value) => top + (height - top - bottom) * (1 - value / max);
-  return (
-    <svg className="line-svg" viewBox={`0 0 ${width} ${height}`} role="img">
-      {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
-        const yy = top + (height - top - bottom) * tick;
-        return <line key={tick} x1={left} y1={yy} x2={width - right} y2={yy} className="axis" />;
-      })}
-      {series.map((item, index) => (
-        <g key={item.name}>
-          <rect x={left + index * 130} y="4" width="9" height="9" rx="2" fill={COLORS[index % COLORS.length]} />
-          <text x={left + 14 + index * 130} y="12" className="tick">{item.name}</text>
-          <polyline
-            points={item.values.map((value, i) => `${left + i * xStep},${y(value)}`).join(" ")}
-            fill="none"
-            stroke={COLORS[index % COLORS.length]}
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {item.values.map((value, i) => <circle key={i} cx={left + i * xStep} cy={y(value)} r="2.5" fill={COLORS[index % COLORS.length]} />)}
-        </g>
-      ))}
-      {MONTH_ORDER.map((month, i) => <text key={month} x={left + i * xStep} y={height - 10} textAnchor="middle" className="tick">{MONTH_LABELS[month]}</text>)}
-    </svg>
-  );
-}
-
 function DataSourcePanel({ data, reload, setData, setError }) {
   const [open, setOpen] = useState(false);
-  const [sourceDir, setSourceDir] = useState(data?.sourceDir || "");
+  const [sourceType, setSourceType] = useState(data?.sourceType || "local-folder");
+  const [sourceDir, setSourceDir] = useState(data?.sourceType === "local-folder" ? data?.sourceDir || "" : "");
+  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => setSourceDir(data?.sourceDir || ""), [data?.sourceDir]);
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/source")
+      .then((response) => response.json())
+      .then((config) => {
+        setSourceType(config.sourceType || "local-folder");
+        setSourceDir(config.sourceDir || "");
+        setGoogleSheetUrl(config.googleSheetUrl || config.googleSheetId || "");
+      })
+      .catch(() => {});
+  }, [open]);
 
   async function saveSource() {
     setSaving(true);
@@ -315,7 +248,7 @@ function DataSourcePanel({ data, reload, setData, setError }) {
       const response = await fetch("/api/source", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceDir }),
+        body: JSON.stringify({ sourceType, sourceDir, googleSheetUrl }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Unable to connect data source");
@@ -334,12 +267,27 @@ function DataSourcePanel({ data, reload, setData, setError }) {
       <button className="top-button muted" onClick={() => reload(true)}>Refresh</button>
       {open && (
         <div className="source-popover">
-          <div className="source-title">CSV / Excel Source Folder</div>
-          <div className="source-copy">Set this once to the folder containing your accounting exports. When files are updated, the backend detects modified timestamps and refreshes the dashboard data.</div>
-          <input value={sourceDir} onChange={(event) => setSourceDir(event.target.value)} />
+          <div className="source-title">Connect dashboard data</div>
+          <div className="source-tabs" role="tablist" aria-label="Data source type">
+            <button type="button" role="tab" aria-selected={sourceType === "local-folder"} onClick={() => setSourceType("local-folder")}>CSV / Excel Folder</button>
+            <button type="button" role="tab" aria-selected={sourceType === "google-sheet"} onClick={() => setSourceType("google-sheet")}>Google Sheets</button>
+          </div>
+          {sourceType === "google-sheet" ? (
+            <label className="source-field">
+              <span>Google Sheets URL or ID</span>
+              <input value={googleSheetUrl} onChange={(event) => setGoogleSheetUrl(event.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." />
+              <small>The workbook is re-read automatically; keep the existing tab and field names unchanged.</small>
+            </label>
+          ) : (
+            <label className="source-field">
+              <span>CSV / Excel source folder</span>
+              <input value={sourceDir} onChange={(event) => setSourceDir(event.target.value)} placeholder="C:\\Data\\Exports" />
+              <small>Updated files are detected from their modified timestamps.</small>
+            </label>
+          )}
           <div className="source-actions">
             <button className="top-button muted" onClick={() => setOpen(false)}>Cancel</button>
-            <button className="top-button" onClick={saveSource} disabled={saving}>{saving ? "Connecting..." : "Connect"}</button>
+            <button className="top-button" onClick={saveSource} disabled={saving || (sourceType === "google-sheet" ? !googleSheetUrl.trim() : !sourceDir.trim())}>{saving ? "Connecting..." : "Connect"}</button>
           </div>
         </div>
       )}
@@ -556,7 +504,7 @@ function Dashboard({ data, filters }) {
             </div>
           </Card>
           <div className="grid31">
-            <Card title="Sales vs Purchase" sub="" badge=""><LineChart series={monthlySeries.slice(0, 2)} /></Card>
+            <Card title="Sales vs Purchase" sub="Drag to pan after zooming" badge=""><LineChart series={monthlySeries.slice(0, 2)} months={MONTH_ORDER} labels={MONTH_LABELS} /></Card>
             <Card title="Highlights" sub="" badge="">
               <Highlights items={[
                 { label: "Last Sales on current period", value: `Sales Amount: ${money(totals.netSales / Math.max(totals.salesLines.length, 1))}` },
@@ -705,8 +653,8 @@ function Dashboard({ data, filters }) {
   );
 }
 
-export default function App() {
-  const { data, error, loading, load, setData, setError } = useDashboardData();
+function DashboardApp({ authUser, onLogout, onUnauthorized }) {
+  const { data, error, loading, load, setData, setError } = useDashboardData(onUnauthorized);
   const [filters, setFilters] = useState({
     section: "executive",
     period: "FY",
@@ -785,7 +733,11 @@ export default function App() {
             <button className="digital-ceo" onClick={() => load(true)} disabled={loading}>Sync Data</button>
             <button className="icon-btn search-action" aria-label="Search" />
             <button className="icon-btn" aria-label="Notifications">!</button>
-            <div className="user-chip"><span>Demo<br />User</span><i /></div>
+            <div className="user-chip">
+              <span>{authUser.email}</span>
+              <i aria-hidden="true" />
+              <button type="button" className="logout-button" onClick={onLogout}>Log out</button>
+            </div>
           </div>
         </header>
 
@@ -830,4 +782,38 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+export default function App() {
+  const [authState, setAuthState] = useState({ status: "checking", user: null });
+
+  const becomeLoggedOut = useCallback(() => setAuthState({ status: "logged-out", user: null }), []);
+
+  useEffect(() => {
+    let active = true;
+    getSession()
+      .then(({ user }) => {
+        if (active) setAuthState({ status: "authenticated", user });
+      })
+      .catch(() => {
+        if (active) becomeLoggedOut();
+      });
+    return () => { active = false; };
+  }, [becomeLoggedOut]);
+
+  async function handleLogin(email, password) {
+    const { user } = await login(email, password);
+    setAuthState({ status: "authenticated", user });
+  }
+
+  async function handleLogout() {
+    await logout().catch(() => {});
+    becomeLoggedOut();
+  }
+
+  if (authState.status === "checking") {
+    return <main className="auth-checking"><div className="login-brand" aria-hidden="true">DL</div><span>Checking secure session...</span></main>;
+  }
+  if (authState.status === "logged-out") return <LoginScreen onLogin={handleLogin} />;
+  return <DashboardApp authUser={authState.user} onLogout={handleLogout} onUnauthorized={becomeLoggedOut} />;
 }

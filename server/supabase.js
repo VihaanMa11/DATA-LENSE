@@ -22,6 +22,56 @@ export function getSupabaseClient() {
   });
 }
 
+function requireSupabaseClient() {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error("Supabase authentication is not configured.");
+  return supabase;
+}
+
+export async function signInWithPassword(email, password) {
+  const { data, error } = await requireSupabaseClient().auth.signInWithPassword({ email, password });
+  if (error || !data.session || !data.user) throw new Error("INVALID_CREDENTIALS");
+  return data;
+}
+
+export async function getUserForAccessToken(accessToken) {
+  const { data, error } = await requireSupabaseClient().auth.getUser(accessToken);
+  if (error || !data.user) throw new Error("INVALID_SESSION");
+  return data.user;
+}
+
+export async function refreshAuthSession(refreshToken) {
+  const { data, error } = await requireSupabaseClient().auth.refreshSession({ refresh_token: refreshToken });
+  if (error || !data.session || !data.user) throw new Error("INVALID_SESSION");
+  return data;
+}
+
+export async function signOutAccessToken(accessToken) {
+  if (!accessToken || !hasSupabaseConfig()) return;
+  const { error } = await requireSupabaseClient().auth.admin.signOut(accessToken, "global");
+  if (error) throw new Error("SIGN_OUT_FAILED");
+}
+
+export async function provisionAuthUser({ email, password }) {
+  const supabase = requireSupabaseClient();
+  let page = 1;
+  let user = null;
+  while (!user) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw new Error(`Supabase user lookup failed: ${error.message}`);
+    user = data.users.find((candidate) => candidate.email?.toLowerCase() === email.toLowerCase()) || null;
+    if (user || data.users.length < 1000) break;
+    page += 1;
+  }
+  const result = user
+    ? await supabase.auth.admin.updateUserById(user.id, { password, email_confirm: true })
+    : await supabase.auth.admin.createUser({ email, password, email_confirm: true });
+  if (result.error || !result.data.user) {
+    throw new Error(`Supabase user provisioning failed: ${result.error?.message || "Unknown error"}`);
+  }
+  return result.data.user;
+}
+
 export async function loadDashboardSnapshot() {
   const supabase = getSupabaseClient();
   if (!supabase) return null;

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node server/index.js",
     "build": "vite build",
+    "test": "node --test test/*.test.js",
     "start": "node server/index.js",
     "supabase:upload": "node scripts/upload_dashboard_to_supabase.mjs"
   },

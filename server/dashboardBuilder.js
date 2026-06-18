@@ -2,6 +2,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import XLSX from "xlsx";
+import { validateGoogleWorkbook } from "./googleSheetsSource.js";
 
 const ITEM_FACT_FILES = {
   Sales: "Sales25.csv",
@@ -42,9 +43,13 @@ function requiredPath(files, filename) {
   return found;
 }
 
-function workbookRows(filePath) {
-  const workbook = XLSX.readFile(filePath, { cellDates: true, raw: false });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+function workbookRows(source) {
+  const sheet = typeof source === "string"
+    ? (() => {
+        const workbook = XLSX.readFile(source, { cellDates: true, raw: false });
+        return workbook.Sheets[workbook.SheetNames[0]];
+      })()
+    : source;
   return XLSX.utils.sheet_to_json(sheet, {
     header: 1,
     defval: "",
@@ -199,6 +204,24 @@ export async function buildDashboardData(sourceDir) {
     requiredPath(files, filename);
   }
 
+  return buildDashboardFromSources(files, "local-folder");
+}
+
+export function buildDashboardDataFromWorkbook(workbook) {
+  validateGoogleWorkbook(workbook);
+  const files = new Map();
+  const expected = [...Object.values(ITEM_FACT_FILES), ...Object.values(LEDGER_FILES), ...MASTER_FILES];
+  for (const filename of expected) {
+    const tabName = filename.replace(/\.(csv|xlsx|xls)$/i, "");
+    const actualName = workbook.SheetNames.find((name) => normalizeName(name) === normalizeName(tabName));
+    if (!actualName) throw new Error(`Required Google Sheets tab is missing: ${tabName}`);
+    files.set(normalizeName(filename), workbook.Sheets[actualName]);
+  }
+  return buildDashboardFromSources(files, "google-sheet");
+}
+
+function buildDashboardFromSources(files, sourceType) {
+
   const items = cleanMaster(requiredPath(files, "Itemmaster.xlsx"));
   const accounts = cleanMaster(requiredPath(files, "accmasterxlsx.xlsx"));
   const itemMap = mapByName(items);
@@ -246,7 +269,7 @@ export async function buildDashboardData(sourceDir) {
     }
 
     sourceProfile.push({
-      file: filename,
+      file: sourceType === "google-sheet" ? filename.replace(/\.(csv|xlsx|xls)$/i, "") : filename,
       role: txType,
       rows: rows.length,
       vouchers: rows.filter((row) => row["Bill No. Source"]).length,
@@ -288,7 +311,7 @@ export async function buildDashboardData(sourceDir) {
     }
 
     sourceProfile.push({
-      file: filename,
+      file: sourceType === "google-sheet" ? filename.replace(/\.(csv|xlsx|xls)$/i, "") : filename,
       role: txType,
       rows: rows.length,
       vouchers: rows.filter((row) => row["Bill Date Source"]).length,
