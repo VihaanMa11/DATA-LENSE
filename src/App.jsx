@@ -2,6 +2,15 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart, DonutChart, LineChart } from "./components/InteractiveCharts.jsx";
 import { LoginScreen } from "./components/LoginScreen.jsx";
 import { getSession, login, logout } from "./authClient.js";
+import { CustomerReceivables } from "./pages/CustomerReceivables.jsx";
+import { VendorPayables } from "./pages/VendorPayables.jsx";
+import { CustomerPareto } from "./pages/CustomerPareto.jsx";
+import { ProductPareto } from "./pages/ProductPareto.jsx";
+import { ExpenseAnalysis } from "./pages/ExpenseAnalysis.jsx";
+import { StockMovement } from "./pages/StockMovement.jsx";
+import { CustomerAnalysis } from "./pages/CustomerAnalysis.jsx";
+import { SalesForecast } from "./pages/SalesForecast.jsx";
+import { ProductForecast } from "./pages/ProductForecast.jsx";
 const MONTH_LABELS = {
   "2025-04": "Apr", "2025-05": "May", "2025-06": "Jun", "2025-07": "Jul", "2025-08": "Aug", "2025-09": "Sep",
   "2025-10": "Oct", "2025-11": "Nov", "2025-12": "Dec", "2026-01": "Jan", "2026-02": "Feb", "2026-03": "Mar",
@@ -33,7 +42,18 @@ const NAV = [
   ["uom", "circle", "UOM & Stock"],
   ["adjustments", "node", "Adjustments"],
   ["sources", "stack", "Data Sources"],
+  ["receivables", "circle", "Receivables"],
+  ["payables", "circle", "Vendor & Payables"],
+  ["customerpareto", "circle", "Customer Pareto"],
+  ["productpareto", "circle", "Product Pareto"],
+  ["expenses", "circle", "Expense Analysis"],
+  ["stockmovement", "circle", "Stock Movement"],
+  ["customeranalysis", "circle", "Customer Analysis"],
+  ["salesforecast", "circle", "Sales Forecast"],
+  ["productforecast", "circle", "Product Forecast"],
 ];
+
+const ANALYTICS_PAGES = new Set(["receivables","payables","customerpareto","productpareto","expenses","stockmovement","customeranalysis","salesforecast","productforecast"]);
 
 function money(value) {
   return `INR ${((Number(value) || 0) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })}L`;
@@ -776,8 +796,20 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
             </div>
           </details>
 
-          {loading && !data && <div className="loading">Loading dashboard data...</div>}
-          {data && <Dashboard data={data} filters={filters} />}
+          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && <div className="loading">Loading dashboard data...</div>}
+          {ANALYTICS_PAGES.has(filters.section) ? (
+            filters.section === "receivables" ? <CustomerReceivables /> :
+            filters.section === "payables" ? <VendorPayables /> :
+            filters.section === "customerpareto" ? <CustomerPareto /> :
+            filters.section === "productpareto" ? <ProductPareto /> :
+            filters.section === "expenses" ? <ExpenseAnalysis /> :
+            filters.section === "stockmovement" ? <StockMovement /> :
+            filters.section === "customeranalysis" ? <CustomerAnalysis /> :
+            filters.section === "salesforecast" ? <SalesForecast /> :
+            filters.section === "productforecast" ? <ProductForecast /> : null
+          ) : (
+            data && <Dashboard data={data} filters={filters} />
+          )}
         </main>
       </div>
     </div>
