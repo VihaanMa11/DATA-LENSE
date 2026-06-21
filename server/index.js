@@ -26,6 +26,7 @@ import {
   sessionCookie,
 } from "./auth.js";
 import { buildDashboardData, buildDashboardDataFromWorkbook, sourceSignature as nodeSourceSignature } from "./dashboardBuilder.js";
+import { buildAnalytics } from "./analyticsBuilder.js";
 import { fetchGoogleWorkbook, workbookSignature } from "./googleSheetsSource.js";
 import { normalizeSourceConfig, sourceIdentity } from "./sourceConfig.js";
 
@@ -437,6 +438,15 @@ async function createApp() {
   app.get("/api/dashboard", async (_req, res, next) => {
     try {
       res.json(await loadDashboard());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/analytics", async (_req, res, next) => {
+    try {
+      const dash = await loadDashboard();
+      res.json(buildAnalytics(dash));
     } catch (error) {
       next(error);
     }
