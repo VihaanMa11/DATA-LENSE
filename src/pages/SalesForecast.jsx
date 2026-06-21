@@ -13,7 +13,9 @@ export function SalesForecast() {
 
   const forecast = analytics.forecast || { m1: 0, m2: 0, m3: 0 };
   const trend = analytics.monthlyTrend || [];
-  const trendData = trend.filter(t => t.sales > 0).map(t => ({ label: MONTH_LABELS[t.month] || t.month, value: t.sales }));
+  const activeTrend = trend.filter(t => t.sales > 0);
+  const chartMonths = activeTrend.map(t => t.month);
+  const chartSeries = [{ name: "Net Sales", values: activeTrend.map(t => t.sales) }];
 
   const lastDataMonth = trend.filter(t => t.sales > 0).pop()?.month;
   const lastIdx = FY_ORDER.indexOf(lastDataMonth);
@@ -41,10 +43,10 @@ export function SalesForecast() {
         ))}
       </div>
 
-      {trendData.length > 0 && (
+      {chartMonths.length > 0 && (
         <div style={{ background: "#fff", borderRadius: 8, padding: 16, marginBottom: 24 }}>
           <h3 style={{ color: "#1F497D", margin: "0 0 12px" }}>Monthly Sales Trend (Actual)</h3>
-          <LineChart data={trendData} color="#2E75B6" />
+          <LineChart series={chartSeries} months={chartMonths} labels={MONTH_LABELS} />
         </div>
       )}
 

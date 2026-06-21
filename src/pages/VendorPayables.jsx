@@ -15,7 +15,7 @@ export function VendorPayables() {
   const totalPayments = vendors.reduce((s, v) => s + v.payments, 0);
   const paymentEfficiency = totalPurchase > 0 ? ((totalPayments / totalPurchase) * 100).toFixed(1) : "0.0";
 
-  const barData = top10.map(v => ({ label: v.name.substring(0, 20), value: v.netPurchase }));
+  const barData = top10.map(v => [v.name.substring(0, 20), v.netPurchase]);
 
   return (
     <div style={{ padding: 24, background: "#F8F9FA", minHeight: "100vh" }}>
@@ -39,7 +39,7 @@ export function VendorPayables() {
       {barData.length > 0 && (
         <div style={{ background: "#fff", borderRadius: 8, padding: 16, marginBottom: 24 }}>
           <h3 style={{ color: "#1F497D", margin: "0 0 12px" }}>Top 10 Vendors by Net Purchase</h3>
-          <BarChart data={barData} color="#2E75B6" />
+          <BarChart rows={barData} />
         </div>
       )}
 

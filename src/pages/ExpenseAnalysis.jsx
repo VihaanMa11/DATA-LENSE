@@ -14,7 +14,7 @@ export function ExpenseAnalysis() {
   const expToSalesPct = ((totalExpenses / totalNetSales) * 100).toFixed(1);
   const netOperatingProfit = totalNetSales - totalExpenses;
 
-  const barData = expenses.slice(0, 15).map(e => ({ label: e.accountName.substring(0, 20), value: e.totalExpenses }));
+  const barData = expenses.slice(0, 15).map(e => [e.accountName.substring(0, 20), e.totalExpenses]);
 
   return (
     <div style={{ padding: 24, background: "#F8F9FA", minHeight: "100vh" }}>
@@ -37,7 +37,7 @@ export function ExpenseAnalysis() {
       {barData.length > 0 && (
         <div style={{ background: "#fff", borderRadius: 8, padding: 16, marginBottom: 24 }}>
           <h3 style={{ color: "#1F497D", margin: "0 0 12px" }}>Top 15 Expense Categories</h3>
-          <BarChart data={barData} color="#C00000" />
+          <BarChart rows={barData} />
         </div>
       )}
 

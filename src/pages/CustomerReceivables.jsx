@@ -19,7 +19,7 @@ export function CustomerReceivables() {
     const g = c.group || "Other";
     zoneMap.set(g, (zoneMap.get(g) || 0) + c.pending);
   });
-  const zoneData = [...zoneMap.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }));
+  const zoneData = [...zoneMap.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => [label, value]);
 
   return (
     <div style={{ padding: 24, background: "#F8F9FA", minHeight: "100vh" }}>
@@ -42,7 +42,7 @@ export function CustomerReceivables() {
       {zoneData.length > 0 && (
         <div style={{ background: "#fff", borderRadius: 8, padding: 16, marginBottom: 24 }}>
           <h3 style={{ color: "#1F497D", margin: "0 0 12px" }}>Zone-wise Outstanding</h3>
-          <BarChart data={zoneData} color="#C55A11" />
+          <BarChart rows={zoneData} />
         </div>
       )}
 

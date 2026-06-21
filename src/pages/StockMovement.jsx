@@ -14,7 +14,7 @@ export function StockMovement() {
   const netMovement = totalInward - totalOutward;
 
   const top15Fast = [...stockItems].sort((a, b) => (b.outward || b.netQty || 0) - (a.outward || a.netQty || 0)).slice(0, 15);
-  const fastBarData = top15Fast.map(it => ({ label: it.name.substring(0, 18), value: it.outward || it.netQty || 0 }));
+  const fastBarData = top15Fast.map(it => [it.name.substring(0, 18), it.outward || it.netQty || 0]);
 
   return (
     <div style={{ padding: 24, background: "#F8F9FA", minHeight: "100vh" }}>
@@ -37,7 +37,7 @@ export function StockMovement() {
       {fastBarData.length > 0 && (
         <div style={{ background: "#fff", borderRadius: 8, padding: 16, marginBottom: 24 }}>
           <h3 style={{ color: "#1F497D", margin: "0 0 12px" }}>Top 15 Fast Movers (by Qty Sold)</h3>
-          <BarChart data={fastBarData} color="#375623" />
+          <BarChart rows={fastBarData} />
         </div>
       )}
 
