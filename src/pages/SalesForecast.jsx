@@ -1,3 +1,4 @@
+import React from "react";
 import { useAnalytics } from "../useAnalytics.js";
 import { LineChart } from "../components/InteractiveCharts.jsx";
 

@@ -11,6 +11,7 @@ import { StockMovement } from "./pages/StockMovement.jsx";
 import { CustomerAnalysis } from "./pages/CustomerAnalysis.jsx";
 import { SalesForecast } from "./pages/SalesForecast.jsx";
 import { ProductForecast } from "./pages/ProductForecast.jsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 const MONTH_LABELS = {
   "2025-04": "Apr", "2025-05": "May", "2025-06": "Jun", "2025-07": "Jul", "2025-08": "Aug", "2025-09": "Sep",
   "2025-10": "Oct", "2025-11": "Nov", "2025-12": "Dec", "2026-01": "Jan", "2026-02": "Feb", "2026-03": "Mar",
@@ -798,15 +799,17 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
 
           {loading && !data && !ANALYTICS_PAGES.has(filters.section) && <div className="loading">Loading dashboard data...</div>}
           {ANALYTICS_PAGES.has(filters.section) ? (
-            filters.section === "receivables" ? <CustomerReceivables /> :
-            filters.section === "payables" ? <VendorPayables /> :
-            filters.section === "customerpareto" ? <CustomerPareto /> :
-            filters.section === "productpareto" ? <ProductPareto /> :
-            filters.section === "expenses" ? <ExpenseAnalysis /> :
-            filters.section === "stockmovement" ? <StockMovement /> :
-            filters.section === "customeranalysis" ? <CustomerAnalysis /> :
-            filters.section === "salesforecast" ? <SalesForecast /> :
-            filters.section === "productforecast" ? <ProductForecast /> : null
+            <ErrorBoundary resetKey={filters.section}>
+              {filters.section === "receivables" ? <CustomerReceivables /> :
+               filters.section === "payables" ? <VendorPayables /> :
+               filters.section === "customerpareto" ? <CustomerPareto /> :
+               filters.section === "productpareto" ? <ProductPareto /> :
+               filters.section === "expenses" ? <ExpenseAnalysis /> :
+               filters.section === "stockmovement" ? <StockMovement /> :
+               filters.section === "customeranalysis" ? <CustomerAnalysis /> :
+               filters.section === "salesforecast" ? <SalesForecast /> :
+               filters.section === "productforecast" ? <ProductForecast /> : null}
+            </ErrorBoundary>
           ) : (
             data && <Dashboard data={data} filters={filters} />
           )}

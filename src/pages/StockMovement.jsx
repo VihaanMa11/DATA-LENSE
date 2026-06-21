@@ -1,3 +1,4 @@
+import React from "react";
 import { useAnalytics } from "../useAnalytics.js";
 import { BarChart } from "../components/InteractiveCharts.jsx";
 

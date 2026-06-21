@@ -1,3 +1,4 @@
+import React from "react";
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from "recharts";
 
 export function ParetoChart({ data, title, barLabel = "Sales (INR)" }) {

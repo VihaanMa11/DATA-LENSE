@@ -1,56 +1,53 @@
+// Computes enriched analytics from the dashboard data model.
+// Input shape (from dashboardBuilder.js):
+//   itemFacts:   flat array of { tx, date, month, party, accountGroup, state, station,
+//                                item, itemGroup, qty, amount, finalAmount, price, isHeader }
+//                tx ∈ { "Sales", "Sales Return", "Purchase", "Purchase Return" }
+//                finalAmount is bill-level (only populated on header rows) → use for party/bill totals.
+//                amount is line-level → use for item-level breakdowns.
+//   ledgerFacts: flat array of { tx, date, month, account, accountGroup, debit, credit, businessAmount, isHeader }
+//                tx ∈ { "Receipt", "Payment", "Credit Note", "Debit Note", "Journal" }
+//                customer collections live on the credit side of Receipt vouchers (account = customer name).
+//                vendor payments / expenses live on the debit side of Payment vouchers (account = payee).
+
 const TODAY = new Date();
+const FY_ORDER = ["2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03"];
 
-function parseAmt(v) {
-  return Math.abs(parseFloat(String(v || "0").replace(/[^\d.-]/g, "")) || 0);
-}
-
-function parseDateStr(v) {
-  if (!v) return null;
-  const d = new Date(v);
-  return isNaN(d) ? null : d;
-}
+const num = (v) => Number(v) || 0;
 
 function daysBetween(d1, d2) {
   return Math.floor((d2 - d1) / 86400000);
 }
 
-const FY_ORDER = ["2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03"];
-
 export function buildAnalytics(dashData) {
-  const { itemFacts, ledgerFacts } = dashData;
+  const itemFacts = Array.isArray(dashData?.itemFacts) ? dashData.itemFacts : [];
+  const ledgerFacts = Array.isArray(dashData?.ledgerFacts) ? dashData.ledgerFacts : [];
 
-  const salesRows = itemFacts?.Sales || [];
-  const salesReturnRows = itemFacts?.["Sales Return"] || [];
-  const purchaseRows = itemFacts?.Purchase || [];
-  const purchaseReturnRows = itemFacts?.["Purchase Return"] || [];
-  const receiptRows = ledgerFacts?.Receipt || [];
-  const paymentRows = ledgerFacts?.Payment || [];
-
-  // --- Customer metrics ---
+  // ---------------------------------------------------------------- Customers
   const custMap = new Map();
-  function ensureCust(name) {
+  function cust(name) {
     if (!custMap.has(name)) {
-      custMap.set(name, { name, grossSales: 0, salesReturn: 0, receipts: 0, months: new Set(), dates: [] });
+      custMap.set(name, { name, station: "", group: "", grossSales: 0, salesReturn: 0, receipts: 0, months: new Set(), dates: [] });
     }
     return custMap.get(name);
   }
 
-  for (const row of salesRows) {
-    const c = ensureCust(row["Party Name"] || "Unknown");
-    c.grossSales += parseAmt(row["Final Amt"]);
-    const d = parseDateStr(row["Bill Date"]);
-    if (d) {
-      c.months.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-      c.dates.push(d);
+  for (const r of itemFacts) {
+    if (r.tx === "Sales") {
+      const c = cust(r.party || "Unknown");
+      c.grossSales += num(r.finalAmount);
+      if (!c.station && r.station) c.station = r.station;
+      if (!c.group && r.accountGroup) c.group = r.accountGroup;
+      if (r.date) { c.months.add(r.month); c.dates.push(new Date(r.date)); }
+    } else if (r.tx === "Sales Return") {
+      const c = cust(r.party || "Unknown");
+      c.salesReturn += num(r.finalAmount);
     }
   }
-  for (const row of salesReturnRows) {
-    const c = ensureCust(row["Party Name"] || "Unknown");
-    c.salesReturn += parseAmt(row["Final Amt"]);
-  }
-  for (const row of receiptRows) {
-    const c = ensureCust(row["Account Name"] || "Unknown");
-    c.receipts += parseAmt(row["Debit Amount"]);
+  for (const r of ledgerFacts) {
+    if (r.tx === "Receipt" && custMap.has(r.account)) {
+      custMap.get(r.account).receipts += num(r.credit);
+    }
   }
 
   const totalNetSales = [...custMap.values()].reduce((s, c) => s + c.grossSales - c.salesReturn, 0);
@@ -81,7 +78,7 @@ export function buildAnalytics(dashData) {
         : netSales >= 100000 ? "🥈 Silver"
         : "Bronze";
 
-      return { name: c.name, station: "", group: "", netSales, receipts: c.receipts, pending, collectionRate, lastSaleDate: lastDate ? lastDate.toISOString().slice(0, 10) : null, daysSinceLastSale, activeMonths, avgMonthlySales: activeMonths > 0 ? Math.round(netSales / activeMonths) : 0, score, riskFlag, tier, rank: 0, cumulativePct: 0 };
+      return { name: c.name, station: c.station, group: c.group, netSales, receipts: c.receipts, pending, collectionRate, lastSaleDate: lastDate ? lastDate.toISOString().slice(0, 10) : null, daysSinceLastSale, activeMonths, avgMonthlySales: activeMonths > 0 ? Math.round(netSales / activeMonths) : 0, score, riskFlag, tier, rank: 0, cumulativePct: 0 };
     })
     .sort((a, b) => b.netSales - a.netSales)
     .map((c, i) => {
@@ -91,21 +88,20 @@ export function buildAnalytics(dashData) {
       return c;
     });
 
-  // --- Vendor metrics ---
+  // ------------------------------------------------------------------ Vendors
   const vendorMap = new Map();
-  for (const row of purchaseRows) {
-    const v = row["Party Name"] || "Unknown";
-    if (!vendorMap.has(v)) vendorMap.set(v, { name: v, grossPurchase: 0, purchaseReturn: 0, payments: 0 });
-    vendorMap.get(v).grossPurchase += parseAmt(row["Final Amt"]);
+  function vendor(name) {
+    if (!vendorMap.has(name)) vendorMap.set(name, { name, grossPurchase: 0, purchaseReturn: 0, payments: 0 });
+    return vendorMap.get(name);
   }
-  for (const row of purchaseReturnRows) {
-    const v = row["Party Name"] || "Unknown";
-    if (!vendorMap.has(v)) vendorMap.set(v, { name: v, grossPurchase: 0, purchaseReturn: 0, payments: 0 });
-    vendorMap.get(v).purchaseReturn += parseAmt(row["Final Amt"]);
+  for (const r of itemFacts) {
+    if (r.tx === "Purchase") vendor(r.party || "Unknown").grossPurchase += num(r.finalAmount);
+    else if (r.tx === "Purchase Return") vendor(r.party || "Unknown").purchaseReturn += num(r.finalAmount);
   }
-  for (const row of paymentRows) {
-    const acc = row["Account Name"] || "Unknown";
-    if (vendorMap.has(acc)) vendorMap.get(acc).payments += parseAmt(row["Credit Amount"] || "0");
+  for (const r of ledgerFacts) {
+    if (r.tx === "Payment" && vendorMap.has(r.account)) {
+      vendorMap.get(r.account).payments += num(r.debit);
+    }
   }
   const vendors = [...vendorMap.values()]
     .filter(v => v.grossPurchase > 0)
@@ -119,31 +115,20 @@ export function buildAnalytics(dashData) {
     }))
     .sort((a, b) => b.netPurchase - a.netPurchase);
 
-  // --- Item metrics ---
+  // -------------------------------------------------------------------- Items
+  // Item-level uses line-level `amount` (finalAmount is bill-level and would misattribute multi-item bills).
   const itemMap = new Map();
-  function ensureItem(name) {
-    if (!itemMap.has(name)) itemMap.set(name, { name, group: "", grossSales: 0, salesReturn: 0, grossQty: 0, returnQty: 0, purchaseQty: 0, purchaseAmt: 0 });
+  function item(name) {
+    if (!itemMap.has(name)) itemMap.set(name, { name, group: "", grossSales: 0, salesReturn: 0, grossQty: 0, returnQty: 0, purchaseQty: 0, purchaseReturnQty: 0, purchaseAmt: 0 });
     return itemMap.get(name);
   }
-  for (const row of salesRows) {
-    const it = ensureItem(row["Item Name"] || "Unknown");
-    it.grossSales += parseAmt(row["Final Amt"]);
-    it.grossQty += parseAmt(row["Main Qt"]);
-  }
-  for (const row of salesReturnRows) {
-    const it = ensureItem(row["Item Name"] || "Unknown");
-    it.salesReturn += parseAmt(row["Final Amt"]);
-    it.returnQty += parseAmt(row["Main Qt"]);
-  }
-  for (const row of purchaseRows) {
-    const it = ensureItem(row["Item Name"] || "Unknown");
-    it.purchaseQty += parseAmt(row["Main Qt"]);
-    it.purchaseAmt += parseAmt(row["Final Amt"]);
-  }
-  for (const row of purchaseReturnRows) {
-    const it = ensureItem(row["Item Name"] || "Unknown");
-    it.purchaseQty -= parseAmt(row["Main Qt"]);
-    it.purchaseAmt -= parseAmt(row["Final Amt"]);
+  for (const r of itemFacts) {
+    const it = item(r.item || "Unknown");
+    if (!it.group && r.itemGroup) it.group = r.itemGroup;
+    if (r.tx === "Sales") { it.grossSales += num(r.amount); it.grossQty += num(r.qty); }
+    else if (r.tx === "Sales Return") { it.salesReturn += num(r.amount); it.returnQty += num(r.qty); }
+    else if (r.tx === "Purchase") { it.purchaseQty += num(r.qty); it.purchaseAmt += num(r.amount); }
+    else if (r.tx === "Purchase Return") { it.purchaseReturnQty += num(r.qty); it.purchaseAmt -= num(r.amount); }
   }
 
   const totalItemSales = [...itemMap.values()].reduce((s, it) => s + it.grossSales - it.salesReturn, 0);
@@ -153,8 +138,9 @@ export function buildAnalytics(dashData) {
     .map(it => {
       const netSales = it.grossSales - it.salesReturn;
       const netQty = it.grossQty - it.returnQty;
-      const avgPurchaseRate = it.purchaseQty > 0 ? it.purchaseAmt / it.purchaseQty : 0;
-      return { name: it.name, group: it.group, netSales, netQty, avgPurchaseRate, rank: 0, cumulativePct: 0 };
+      const purchaseNetQty = it.purchaseQty - it.purchaseReturnQty;
+      const avgPurchaseRate = purchaseNetQty > 0 ? it.purchaseAmt / purchaseNetQty : 0;
+      return { name: it.name, group: it.group, netSales, netQty, inward: purchaseNetQty, outward: netQty, avgPurchaseRate, rank: 0, cumulativePct: 0 };
     })
     .sort((a, b) => b.netSales - a.netSales)
     .map((it, i) => {
@@ -164,40 +150,30 @@ export function buildAnalytics(dashData) {
       return it;
     });
 
-  // Stock items (inward = purchase qty net, outward = sales qty net)
-  const stockItems = items.map(it => {
-    const inward = purchaseRows.filter(r => r["Item Name"] === it.name).reduce((s, r) => s + parseAmt(r["Main Qt"]), 0)
-      - purchaseReturnRows.filter(r => r["Item Name"] === it.name).reduce((s, r) => s + parseAmt(r["Main Qt"]), 0);
-    return { ...it, inward, outward: it.netQty };
-  });
+  const stockItems = items.map(it => ({ ...it }));
 
-  // --- Expenses ---
+  // ----------------------------------------------------------------- Expenses
+  // Expense = debit side of Payment vouchers, grouped by payee account.
   const expMap = new Map();
-  for (const row of paymentRows) {
-    const acc = row["Account Name"] || "Unknown";
-    expMap.set(acc, (expMap.get(acc) || 0) + parseAmt(row["Debit Amount"]));
+  for (const r of ledgerFacts) {
+    if (r.tx !== "Payment") continue;
+    const debit = num(r.debit);
+    if (debit <= 0) continue;
+    expMap.set(r.account, (expMap.get(r.account) || 0) + debit);
   }
   const expenses = [...expMap.entries()]
     .map(([accountName, totalExpenses]) => ({ accountName, totalExpenses }))
     .sort((a, b) => b.totalExpenses - a.totalExpenses);
 
-  // --- Monthly sales trend ---
+  // ------------------------------------------------------------ Monthly trend
   const monthSales = new Map();
-  for (const row of salesRows) {
-    const d = parseDateStr(row["Bill Date"]);
-    if (!d) continue;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    monthSales.set(key, (monthSales.get(key) || 0) + parseAmt(row["Final Amt"]));
-  }
-  for (const row of salesReturnRows) {
-    const d = parseDateStr(row["Bill Date"]);
-    if (!d) continue;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    monthSales.set(key, (monthSales.get(key) || 0) - parseAmt(row["Final Amt"]));
+  for (const r of itemFacts) {
+    if (r.tx === "Sales") monthSales.set(r.month, (monthSales.get(r.month) || 0) + num(r.finalAmount));
+    else if (r.tx === "Sales Return") monthSales.set(r.month, (monthSales.get(r.month) || 0) - num(r.finalAmount));
   }
   const monthlyTrend = FY_ORDER.map((m, i) => ({ month: m, x: i + 1, sales: Math.max(0, monthSales.get(m) || 0) }));
 
-  // --- Linear regression forecast ---
+  // --------------------------------------------------------- Linear forecast
   const dataPoints = monthlyTrend.filter(p => p.sales > 0);
   let forecast = { m1: 0, m2: 0, m3: 0 };
   if (dataPoints.length >= 3) {
@@ -206,7 +182,8 @@ export function buildAnalytics(dashData) {
     const sumY = dataPoints.reduce((s, p) => s + p.sales, 0);
     const sumXY = dataPoints.reduce((s, p) => s + p.x * p.sales, 0);
     const sumX2 = dataPoints.reduce((s, p) => s + p.x * p.x, 0);
-    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    const denom = n * sumX2 - sumX * sumX;
+    const slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
     const intercept = (sumY - slope * sumX) / n;
     const nextX = dataPoints[dataPoints.length - 1].x + 1;
     forecast = {

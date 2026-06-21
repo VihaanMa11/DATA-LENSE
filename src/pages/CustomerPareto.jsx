@@ -1,3 +1,4 @@
+import React from "react";
 import { useAnalytics } from "../useAnalytics.js";
 import { ParetoChart } from "../components/ParetoChart.jsx";
 
