@@ -16,3 +16,7 @@ scripts/__pycache__/
 
 .vercel
 server*.log
+
+# Local tooling / Claude Code skills — not part of the app
+.claude/
+excalidraw-diagram-skill/
