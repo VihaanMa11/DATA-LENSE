@@ -1,4 +1,3 @@
-import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -41,8 +40,6 @@ try {
 const configPath = path.join(__dirname, "data-source.json");
 const cachePath = path.join(__dirname, "dashboard-cache.json");
 const defaultSourceDir = "C:\\Users\\hp\\Downloads\\DataLense\\csv";
-const bundledPython = "C:\\Users\\hp\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe";
-const pythonScript = path.join(rootDir, "scripts", "build_dashboard_data.py");
 const isVercel = Boolean(process.env.VERCEL);
 const secureCookies = isVercel || process.env.NODE_ENV === "production";
 const upload = multer({
@@ -118,32 +115,6 @@ async function sourceSignature(sourceDir) {
   return fileStats.sort().join("|");
 }
 
-function runPython(sourceDir) {
-  const pythonExe = process.env.DASHBOARD_PYTHON || bundledPython;
-  return new Promise((resolve, reject) => {
-    execFile(
-      pythonExe,
-      [pythonScript, "--source", sourceDir],
-      {
-        cwd: rootDir,
-        maxBuffer: 80 * 1024 * 1024,
-        windowsHide: true,
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(new Error(stderr || error.message));
-          return;
-        }
-        try {
-          resolve(JSON.parse(stdout));
-        } catch (parseError) {
-          reject(new Error(`Dashboard parser returned invalid JSON: ${parseError.message}`));
-        }
-      },
-    );
-  });
-}
-
 function cleanUploadName(filename) {
   return path.basename(String(filename || "").replace(/\\/g, "/"));
 }
@@ -194,7 +165,7 @@ async function loadDashboard({ force = false } = {}) {
       throw error;
     }
     signature = await sourceSignature(config.sourceDir);
-    freshData = () => runPython(config.sourceDir);
+    freshData = () => buildDashboardData(config.sourceDir);
   }
 
   if (!force && cache.data && cache.sourceKey === sourceKey && cache.signature === signature) {
