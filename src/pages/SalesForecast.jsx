@@ -1,84 +1,68 @@
 import React from "react";
 import { useAnalytics } from "../useAnalytics.js";
+import { SectionHead, Kpi, Card, Table, money } from "../components/ui.jsx";
 import { LineChart } from "../components/InteractiveCharts.jsx";
-
-const MONTH_LABELS = { "2025-04":"Apr","2025-05":"May","2025-06":"Jun","2025-07":"Jul","2025-08":"Aug","2025-09":"Sep","2025-10":"Oct","2025-11":"Nov","2025-12":"Dec","2026-01":"Jan","2026-02":"Feb","2026-03":"Mar" };
-const FY_ORDER = ["2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03"];
-
-function money(v) { return `INR ${((Number(v) || 0) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })}L`; }
+import { PageState, MONTH_LABELS, MONTH_ORDER } from "./pageKit.jsx";
 
 export function SalesForecast() {
   const { analytics, loading, error } = useAnalytics();
-  if (loading) return <div style={{ padding: 32 }}>Loading…</div>;
-  if (error) return <div style={{ padding: 32, color: "#C00000" }}>{error}</div>;
+  return (
+    <PageState loading={loading} error={error}>
+      {analytics && <Body a={analytics} />}
+    </PageState>
+  );
+}
 
-  const forecast = analytics.forecast || { m1: 0, m2: 0, m3: 0 };
-  const trend = analytics.monthlyTrend || [];
-  const activeTrend = trend.filter(t => t.sales > 0);
-  const chartMonths = activeTrend.map(t => t.month);
-  const chartSeries = [{ name: "Net Sales", values: activeTrend.map(t => t.sales) }];
+function Body({ a }) {
+  const forecast = a.forecast || { m1: 0, m2: 0, m3: 0, slope: 0 };
+  const monthly = a.monthly || [];
+  const actuals = MONTH_ORDER.map(m => (monthly.find(x => x.month === m)?.sales) || 0);
+  const lastIdx = actuals.reduce((acc, v, i) => (v > 0 ? i : acc), -1);
 
-  const lastDataMonth = trend.filter(t => t.sales > 0).pop()?.month;
-  const lastIdx = FY_ORDER.indexOf(lastDataMonth);
-  const nextMonths = FY_ORDER.slice(lastIdx + 1, lastIdx + 4);
-  const nextLabels = nextMonths.map(m => MONTH_LABELS[m] || m);
+  // Extend the axis with 3 forecast months.
+  const labels = { ...MONTH_LABELS, F1: "+1", F2: "+2", F3: "+3" };
+  const months = [...MONTH_ORDER, "F1", "F2", "F3"];
+
+  const forecastSeries = months.map(() => 0);
+  if (lastIdx >= 0) {
+    forecastSeries[lastIdx] = actuals[lastIdx]; // connect line to last actual
+    forecastSeries[MONTH_ORDER.length] = forecast.m1;
+    forecastSeries[MONTH_ORDER.length + 1] = forecast.m2;
+    forecastSeries[MONTH_ORDER.length + 2] = forecast.m3;
+  }
+  const series = [
+    { name: "Actual", values: [...actuals, 0, 0, 0] },
+    { name: "Forecast", values: forecastSeries },
+  ];
+
+  const trendDir = forecast.slope > 0 ? "↗ Growing" : forecast.slope < 0 ? "↘ Declining" : "→ Flat";
 
   return (
-    <div style={{ padding: 24, background: "#F8F9FA", minHeight: "100vh" }}>
-      <h1 style={{ color: "#1F497D", marginBottom: 20 }}>Sales Forecast — 3 Month Outlook</h1>
-
-      <div style={{ background: "#D6E4F0", borderRadius: 8, padding: "12px 16px", marginBottom: 24, fontSize: 13, color: "#1F497D" }}>
-        Forecast uses linear regression (least-squares method) on monthly FY data. Requires ≥3 months of data.
+    <section className="section active">
+      <SectionHead code="SF" title="Sales Forecast — 3 Months" sub="Linear regression (least squares) on monthly net sales" />
+      <div className="kpis">
+        <Kpi title="Next Month" value={money(forecast.m1)} meta="M+1 projection" tone="#f6a343" icon="money" />
+        <Kpi title="Month +2" value={money(forecast.m2)} meta="M+2 projection" tone="#f6a343" />
+        <Kpi title="Month +3" value={money(forecast.m3)} meta="M+3 projection" tone="#f6a343" />
+        <Kpi title="Trend" value={trendDir} meta={`Slope ${money(forecast.slope)}/mo`} tone={forecast.slope >= 0 ? "#2fd083" : "#f14f64"} />
       </div>
-
-      <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
-        {[
-          { label: `Forecast ${nextLabels[0] || "M+1"}`, value: money(forecast.m1) },
-          { label: `Forecast ${nextLabels[1] || "M+2"}`, value: money(forecast.m2) },
-          { label: `Forecast ${nextLabels[2] || "M+3"}`, value: money(forecast.m3) },
-        ].map(kpi => (
-          <div key={kpi.label} style={{ background: "#fff", border: "2px solid #C55A11", borderRadius: 8, padding: "16px 28px", minWidth: 200 }}>
-            <div style={{ fontSize: 13, color: "#666" }}>{kpi.label}</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: "#C55A11" }}>{kpi.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {chartMonths.length > 0 && (
-        <div style={{ background: "#fff", borderRadius: 8, padding: 16, marginBottom: 24 }}>
-          <h3 style={{ color: "#1F497D", margin: "0 0 12px" }}>Monthly Sales Trend (Actual)</h3>
-          <LineChart series={chartSeries} months={chartMonths} labels={MONTH_LABELS} />
-        </div>
-      )}
-
-      <div style={{ background: "#fff", borderRadius: 8, padding: 16, overflowX: "auto" }}>
-        <h3 style={{ color: "#1F497D", margin: "0 0 12px" }}>Actual vs Forecast</h3>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: "#1F497D", color: "#fff" }}>
-              {["Month", "Sales / Forecast", "Type"].map(h => (
-                <th key={h} style={{ padding: "8px 12px", textAlign: "left" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {trend.filter(t => t.sales > 0).map((t, i) => (
-              <tr key={t.month} style={{ background: i % 2 === 0 ? "#fff" : "#D6E4F0" }}>
-                <td style={{ padding: "7px 12px" }}>{MONTH_LABELS[t.month] || t.month}</td>
-                <td style={{ padding: "7px 12px", fontWeight: 600, color: "#2E75B6" }}>{money(t.sales)}</td>
-                <td style={{ padding: "7px 12px", color: "#375623" }}>✅ Actual</td>
-              </tr>
-            ))}
-            {[forecast.m1, forecast.m2, forecast.m3].map((val, i) => nextLabels[i] ? (
-              <tr key={`f${i}`} style={{ background: i % 2 === 0 ? "#fff3e0" : "#ffe0b2" }}>
-                <td style={{ padding: "7px 12px" }}>{nextLabels[i]} (Forecast)</td>
-                <td style={{ padding: "7px 12px", fontWeight: 600, color: "#C55A11" }}>{money(val)}</td>
-                <td style={{ padding: "7px 12px", color: "#C55A11" }}>📈 Projected</td>
-              </tr>
-            ) : null)}
-          </tbody>
-        </table>
-      </div>
-    </div>
+      <Card title="Actual vs Forecast" sub="Blue = actual net sales; second line projects the next 3 months" badge="Forecast">
+        <LineChart series={series} months={months} labels={labels} />
+      </Card>
+      <Card title="Monthly Detail" sub="Actual net sales by month plus projected months" badge="Detail" badgeClass="cyan">
+        <Table
+          headers={["#", "Month", "Net Sales", "Type"]}
+          rows={[
+            ...MONTH_ORDER.filter((m, i) => actuals[i] > 0).map(m => {
+              const idx = MONTH_ORDER.indexOf(m);
+              return [MONTH_LABELS[m], <span className="money">{money(actuals[idx])}</span>, "Actual"];
+            }),
+            [<b>Next Month</b>, <span className="money">{money(forecast.m1)}</span>, <span style={{ color: "#f6a343", fontWeight: 600 }}>Forecast</span>],
+            [<b>Month +2</b>, <span className="money">{money(forecast.m2)}</span>, <span style={{ color: "#f6a343", fontWeight: 600 }}>Forecast</span>],
+            [<b>Month +3</b>, <span className="money">{money(forecast.m3)}</span>, <span style={{ color: "#f6a343", fontWeight: 600 }}>Forecast</span>],
+          ]}
+        />
+      </Card>
+    </section>
   );
 }

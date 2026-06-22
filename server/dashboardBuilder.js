@@ -332,5 +332,14 @@ function buildDashboardFromSources(files, sourceType) {
       itemFields: Object.keys(items[0] || {}),
       accountFields: Object.keys(accounts[0] || {}),
     },
+    itemMaster: items.map((row) => ({
+      name: cleanText(row.Name),
+      group: cleanText(row["Group Name"]),
+      mainUnit: cleanText(row["Main Unit"]),
+      openingStock: asNumber(row["Op. Stock(Main)"]),
+      salePrice: asNumber(row["Sale Price"]),
+      purcPrice: asNumber(row["Purc. Price"]),
+      mrp: asNumber(row.MRP),
+    })),
   };
 }

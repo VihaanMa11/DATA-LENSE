@@ -1,72 +1,48 @@
 import React from "react";
 import { useAnalytics } from "../useAnalytics.js";
-import { BarChart } from "../components/InteractiveCharts.jsx";
-
-function money(v) { return `INR ${((Number(v) || 0) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })}L`; }
+import { SectionHead, Kpi, Card, Table, money } from "../components/ui.jsx";
+import { BarChart, DonutChart } from "../components/InteractiveCharts.jsx";
+import { PageState } from "./pageKit.jsx";
 
 export function ExpenseAnalysis() {
   const { analytics, loading, error } = useAnalytics();
-  if (loading) return <div style={{ padding: 32 }}>Loading…</div>;
-  if (error) return <div style={{ padding: 32, color: "#C00000" }}>{error}</div>;
+  return (
+    <PageState loading={loading} error={error}>
+      {analytics && <Body a={analytics} />}
+    </PageState>
+  );
+}
 
-  const expenses = analytics.expenses || [];
-  const totalExpenses = expenses.reduce((s, e) => s + e.totalExpenses, 0);
-  const totalNetSales = analytics.totalNetSales || 1;
-  const expToSalesPct = ((totalExpenses / totalNetSales) * 100).toFixed(1);
-  const netOperatingProfit = totalNetSales - totalExpenses;
-
-  const barData = expenses.slice(0, 15).map(e => [e.accountName.substring(0, 20), e.totalExpenses]);
+function Body({ a }) {
+  const s = a.summary || {};
+  const expenses = a.expenses || [];
+  const topExp = expenses.slice(0, 15).map(e => [e.accountName, e.totalExpenses]);
+  const groupRows = (a.expenseGroups || []).slice(0, 10);
 
   return (
-    <div style={{ padding: 24, background: "#F8F9FA", minHeight: "100vh" }}>
-      <h1 style={{ color: "#1F497D", marginBottom: 20 }}>Expense Analysis</h1>
-
-      <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
-        {[
-          { label: "Total Expenses", value: money(totalExpenses), color: "#C00000" },
-          { label: "Expense to Sales %", value: `${expToSalesPct}%`, color: parseFloat(expToSalesPct) > 20 ? "#C00000" : "#C55A11" },
-          { label: "Net Operating Profit", value: money(netOperatingProfit), color: netOperatingProfit > 0 ? "#375623" : "#C00000" },
-          { label: "Expense Categories", value: expenses.length, color: "#1F497D" },
-        ].map(kpi => (
-          <div key={kpi.label} style={{ background: "#fff", border: "1px solid #D6E4F0", borderRadius: 8, padding: "16px 24px", minWidth: 200 }}>
-            <div style={{ fontSize: 13, color: "#666" }}>{kpi.label}</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: kpi.color }}>{kpi.value}</div>
-          </div>
-        ))}
+    <section className="section active">
+      <SectionHead code="EX" title="Expense Analysis" sub="Operating expenses vs sales (vendor settlements & control accounts excluded)" />
+      <div className="kpis">
+        <Kpi title="Total Expenses" value={money(s.totalExpenses)} meta={`${expenses.length} expense accounts`} tone="#f14f64" icon="card" />
+        <Kpi title="Expense to Sales" value={`${s.expenseToSalesPct ?? 0}%`} meta="Lower is leaner" tone="#f6a343" />
+        <Kpi title="Gross Profit" value={money(s.grossProfit)} meta={`${s.grossProfitPct ?? 0}% of net sales`} tone="#2fd083" icon="money" />
+        <Kpi title="Net Operating Profit" value={money(s.netOperatingProfit)} meta="GP less expenses" tone={s.netOperatingProfit >= 0 ? "#2fd083" : "#f14f64"} />
       </div>
-
-      {barData.length > 0 && (
-        <div style={{ background: "#fff", borderRadius: 8, padding: 16, marginBottom: 24 }}>
-          <h3 style={{ color: "#1F497D", margin: "0 0 12px" }}>Top 15 Expense Categories</h3>
-          <BarChart rows={barData} />
-        </div>
-      )}
-
-      <div style={{ background: "#fff", borderRadius: 8, padding: 16, overflowX: "auto" }}>
-        <h3 style={{ color: "#1F497D", margin: "0 0 12px" }}>Expense Detail</h3>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: "#1F497D", color: "#fff" }}>
-              {["#", "Account / Category", "Amount", "% of Sales"].map(h => (
-                <th key={h} style={{ padding: "8px 12px", textAlign: "left" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {expenses.map((e, i) => {
-              const pctSales = ((e.totalExpenses / totalNetSales) * 100).toFixed(2);
-              return (
-                <tr key={e.accountName} style={{ background: i % 2 === 0 ? "#fff" : "#D6E4F0" }}>
-                  <td style={{ padding: "7px 12px" }}>{i + 1}</td>
-                  <td style={{ padding: "7px 12px", fontWeight: 500 }}>{e.accountName}</td>
-                  <td style={{ padding: "7px 12px", fontWeight: 600 }}>{money(e.totalExpenses)}</td>
-                  <td style={{ padding: "7px 12px", color: parseFloat(pctSales) > 5 ? "#C55A11" : "#1F1F1F" }}>{pctSales}%</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="grid2">
+        <Card title="Top Expense Accounts" sub="Debit side of payment register" badge="Accounts" badgeClass="red"><BarChart rows={topExp} /></Card>
+        <Card title="Expense by Group" sub="Share across expense groups" badge="Group" badgeClass="yellow"><DonutChart rows={groupRows} /></Card>
       </div>
-    </div>
+      <Card title="Expense Detail" sub="Each expense account with its share of net sales" badge="Expenses">
+        <Table
+          headers={["#", "Account", "Group", "Amount", "% of Sales"]}
+          rows={expenses.map(e => [
+            <span className="strong">{e.accountName}</span>,
+            e.group || "—",
+            <span className="money">{money(e.totalExpenses)}</span>,
+            `${s.totalNetSales ? ((e.totalExpenses / s.totalNetSales) * 100).toFixed(2) : "0.00"}%`,
+          ])}
+        />
+      </Card>
+    </section>
   );
 }

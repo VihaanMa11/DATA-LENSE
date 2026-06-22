@@ -12,6 +12,7 @@ import { CustomerAnalysis } from "./pages/CustomerAnalysis.jsx";
 import { SalesForecast } from "./pages/SalesForecast.jsx";
 import { ProductForecast } from "./pages/ProductForecast.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
+import { money, num, pct, Kpi, SectionHead, Card, Highlights, RatioList, Table } from "./components/ui.jsx";
 const MONTH_LABELS = {
   "2025-04": "Apr", "2025-05": "May", "2025-06": "Jun", "2025-07": "Jul", "2025-08": "Aug", "2025-09": "Sep",
   "2025-10": "Oct", "2025-11": "Nov", "2025-12": "Dec", "2026-01": "Jan", "2026-02": "Feb", "2026-03": "Mar",
@@ -32,41 +33,47 @@ const PERIOD_MONTHS = {
   H2: ["2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"],
   ASOF: MONTH_ORDER,
 };
-const NAV = [
-  ["executive", "bars", "CEO View"],
-  ["parties", "circle", "Party Analysis"],
-  ["segments", "circle", "Segment MIS"],
-  ["state", "circle", "State MIS"],
-  ["items", "circle", "Item Groups"],
-  ["cash", "circle", "Cash & Bank"],
-  ["transport", "circle", "Transport"],
-  ["uom", "circle", "UOM & Stock"],
-  ["adjustments", "node", "Adjustments"],
-  ["sources", "stack", "Data Sources"],
-  ["receivables", "circle", "Receivables"],
-  ["payables", "circle", "Vendor & Payables"],
-  ["customerpareto", "circle", "Customer Pareto"],
-  ["productpareto", "circle", "Product Pareto"],
-  ["expenses", "circle", "Expense Analysis"],
-  ["stockmovement", "circle", "Stock Movement"],
-  ["customeranalysis", "circle", "Customer Analysis"],
-  ["salesforecast", "circle", "Sales Forecast"],
-  ["productforecast", "circle", "Product Forecast"],
+// Sidebar organised into logical groups. Each item: [id, label].
+const NAV_GROUPS = [
+  ["Overview", [
+    ["executive", "CEO View"],
+  ]],
+  ["Sales & Customers", [
+    ["parties", "Party Analysis"],
+    ["customerpareto", "Customer Pareto"],
+    ["customeranalysis", "Customer Analysis"],
+    ["receivables", "Receivables"],
+    ["segments", "Segment MIS"],
+    ["state", "State MIS"],
+  ]],
+  ["Products & Inventory", [
+    ["items", "Item Groups"],
+    ["productpareto", "Product Pareto"],
+    ["stockmovement", "Stock Movement"],
+    ["uom", "UOM & Stock"],
+  ]],
+  ["Purchase & Vendors", [
+    ["payables", "Vendor & Payables"],
+    ["transport", "Transport"],
+  ]],
+  ["Finance", [
+    ["cash", "Cash & Bank"],
+    ["expenses", "Expense Analysis"],
+    ["adjustments", "Adjustments"],
+  ]],
+  ["Forecasting", [
+    ["salesforecast", "Sales Forecast"],
+    ["productforecast", "Product Forecast"],
+  ]],
+  ["Data", [
+    ["sources", "Data Sources"],
+  ]],
 ];
 
+// Flat lookup [id, code, label] kept for the page-header title.
+const NAV = NAV_GROUPS.flatMap(([, items]) => items.map(([id, label]) => [id, "circle", label]));
+
 const ANALYTICS_PAGES = new Set(["receivables","payables","customerpareto","productpareto","expenses","stockmovement","customeranalysis","salesforecast","productforecast"]);
-
-function money(value) {
-  return `INR ${((Number(value) || 0) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })}L`;
-}
-
-function num(value) {
-  return (Number(value) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
-}
-
-function pct(part, total) {
-  return total ? `${((part / total) * 100).toFixed(1)}%` : "0.0%";
-}
 
 function sum(rows, field) {
   return rows.reduce((acc, row) => acc + (Number(row[field]) || 0), 0);
@@ -157,51 +164,6 @@ function SelectFilter({ label, value, values, onChange }) {
   );
 }
 
-function Kpi({ title, value, meta, variant = "", icon = "bars", tone = "#1976d2" }) {
-  const wave = "M0,48 C18,18 34,18 52,48 C70,78 88,78 106,48 C124,18 142,18 160,48 C178,78 196,78 214,48 C232,18 250,18 268,48";
-  return (
-    <div className={`kpi ${variant}`} style={{ "--tone": tone }}>
-      <div className="kpi-copy">
-        <div className={`k-icon ${icon}`} aria-hidden="true" />
-        <div className="k-label">{title}</div>
-        <div className="k-value">{value}</div>
-        <div className="k-meta">{meta}</div>
-      </div>
-      <svg className="k-wave" viewBox="0 0 268 92" aria-hidden="true">
-        <path d={`${wave} L268,92 L0,92 Z`} />
-        <path d={wave} />
-      </svg>
-    </div>
-  );
-}
-
-function SectionHead({ code, title, sub }) {
-  return (
-    <div className="section-head">
-      <div className="section-icon">{code}</div>
-      <div>
-        <div className="section-title">{title}</div>
-        <div className="section-sub">{sub}</div>
-      </div>
-    </div>
-  );
-}
-
-function Card({ title, sub, badge, badgeClass = "", children }) {
-  return (
-    <div className="card">
-      <div className="card-head">
-        <div>
-          <div className="card-title">{title}</div>
-          <div className="card-sub">{sub}</div>
-        </div>
-        {badge && <span className={`badge ${badgeClass}`}>{badge}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
 function ToggleSwitch({ checked, onChange }) {
   return (
     <label className="switch-control">
@@ -210,36 +172,6 @@ function ToggleSwitch({ checked, onChange }) {
       <i aria-hidden="true" />
       <span>Gross</span>
     </label>
-  );
-}
-
-function Highlights({ items }) {
-  return (
-    <div className="timeline">
-      {items.map((item, index) => (
-        <div className="timeline-row" key={item.label}>
-          <span className={`dot d${index % 4}`} />
-          <div>
-            <p>{item.label}</p>
-            <h6>{item.value}</h6>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function RatioList({ rows }) {
-  return (
-    <div className="ratio-list">
-      {rows.map(([label, value], index) => (
-        <div className="ratio-row" key={label}>
-          <span className="ratio-icon">{index + 1}</span>
-          <span>{label}</span>
-          <b>{value}</b>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -386,26 +318,6 @@ function UploadFilesPanel({ reload, setData, setError }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function Table({ headers, rows }) {
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.length ? rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              <td><span className={`rank ${rowIndex === 0 ? "r1" : rowIndex === 1 ? "r2" : rowIndex === 2 ? "r3" : ""}`}>{rowIndex + 1}</span></td>
-              {row.map((cell, index) => <td key={index}>{cell}</td>)}
-            </tr>
-          )) : <tr><td colSpan={headers.length}>No data for current filters</td></tr>}
-        </tbody>
-      </table>
     </div>
   );
 }
@@ -711,33 +623,18 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
           <div className="brand-title">DATA LENSE MLH</div>
         </div>
         <div className="nav-block">
-          <button className="nav-group">
-            <span className="nav-ico home" />
-            <span>MIS Reports</span>
-            <span className="chev">v</span>
-          </button>
-          {NAV.slice(0, 8).map(([id, code, label]) => (
-            <button key={id} className={`nav-btn ${filters.section === id ? "active" : ""}`} onClick={() => { updateFilter("section", id); setMobileNavOpen(false); }}>
-              <span className={`nav-dot ${code}`} />
-              <span>{label}</span>
-            </button>
-          ))}
-          {NAV.slice(8).map(([id, code, label]) => (
-            <button key={id} className={`nav-group ${filters.section === id ? "active" : ""}`} onClick={() => { updateFilter("section", id); setMobileNavOpen(false); }}>
-              <span className={`nav-ico ${code}`} />
-              <span>{label}</span>
-              <span className="chev">&gt;</span>
-            </button>
+          {NAV_GROUPS.map(([group, items]) => (
+            <div className="nav-section" key={group}>
+              <div className="nav-title">{group}</div>
+              {items.map(([id, label]) => (
+                <button key={id} className={`nav-btn ${filters.section === id ? "active" : ""}`} onClick={() => { updateFilter("section", id); setMobileNavOpen(false); }}>
+                  <span className="nav-dot circle" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
           ))}
         </div>
-        <div className="nav-title">Core Reports</div>
-        {["Sales", "Purchase", "Inventory", "Accounts", "Financial Statement", "Statutory Reports", "Exception Reports"].map((label) => (
-          <button className="nav-group report" key={label}>
-            <span className="nav-ico report" />
-            <span>{label}</span>
-            <span className="chev">&gt;</span>
-          </button>
-        ))}
       </aside>
       <button className="nav-scrim" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} />
 
