@@ -1,10 +1,28 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { exportNodeToPdf } from "../exportPdf.js";
 
 // Shared formatting helpers + presentational primitives used across the dashboard
 // and the analytics pages. Kept in one module so App.jsx and pages render identically.
 
+const ExpandIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M15 3h6v6" /><path d="M9 21H3v-6" /><path d="M21 3l-7 7" /><path d="M3 21l7-7" />
+  </svg>
+);
+const DownloadIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" />
+  </svg>
+);
+const CloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M18 6 6 18" /><path d="M6 6l12 12" />
+  </svg>
+);
+
 export function money(value) {
-  return `INR ${((Number(value) || 0) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })}L`;
+  return `₹${((Number(value) || 0) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })}L`;
 }
 
 export function num(value) {
@@ -45,7 +63,8 @@ export function SectionHead({ code, title, sub }) {
   );
 }
 
-export function Card({ title, sub, badge, badgeClass = "", children }) {
+export function Card({ title, sub, badge, badgeClass = "", children, expandable = true }) {
+  const [open, setOpen] = useState(false);
   return (
     <div className="card">
       <div className="card-head">
@@ -53,10 +72,73 @@ export function Card({ title, sub, badge, badgeClass = "", children }) {
           <div className="card-title">{title}</div>
           <div className="card-sub">{sub}</div>
         </div>
-        {badge && <span className={`badge ${badgeClass}`}>{badge}</span>}
+        <div className="card-actions">
+          {badge && <span className={`badge ${badgeClass}`}>{badge}</span>}
+          {expandable && (
+            <button type="button" className="icon-btn" title="Expand & export" aria-label={`Expand ${title || "panel"}`} onClick={() => setOpen(true)}>
+              <ExpandIcon />
+            </button>
+          )}
+        </div>
       </div>
       {children}
+      {open && <ChartModal title={title} sub={sub} onClose={() => setOpen(false)}>{children}</ChartModal>}
     </div>
+  );
+}
+
+function ChartModal({ title, sub, children, onClose }) {
+  const bodyRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const onKey = (event) => { if (event.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  async function handleExport() {
+    if (!bodyRef.current) return;
+    setBusy(true);
+    try {
+      const safe = (title || "datalence-chart").replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
+      await exportNodeToPdf(bodyRef.current, { title: title || "DataLence Chart", filename: safe || "datalence-chart" });
+    } catch (error) {
+      console.error("PDF export failed", error);
+      alert(`Could not export PDF: ${error.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return createPortal(
+    <div className="chart-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="chart-modal" role="dialog" aria-modal="true" aria-label={title || "Chart"}>
+        <div className="chart-modal-head">
+          <div>
+            <h3>{title || "Chart"}</h3>
+            {sub && <p>{sub}</p>}
+          </div>
+          <div className="chart-modal-actions">
+            <button type="button" className="btn-export" onClick={handleExport} disabled={busy}>
+              <DownloadIcon />{busy ? "Exporting…" : "Export PDF"}
+            </button>
+            <button type="button" className="btn-ghost" onClick={onClose}>
+              <CloseIcon />Close
+            </button>
+          </div>
+        </div>
+        <div className="chart-modal-body" ref={bodyRef}>
+          {children}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

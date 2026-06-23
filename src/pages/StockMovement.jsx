@@ -45,7 +45,7 @@ function Body({ a }) {
             <span style={{ color: "#2fd083" }}>{num(it.inward)}</span>,
             <span style={{ color: "#1976d2" }}>{num(it.outward)}</span>,
             <span style={{ color: it.closingQty < 0 ? "#f14f64" : undefined, fontWeight: it.closingQty < 0 ? 700 : 400 }}>{num(it.closingQty)}</span>,
-            `INR ${it.avgPurchaseRate.toFixed(0)}`,
+            `₹${it.avgPurchaseRate.toFixed(0)}`,
             <span className="money">{money(Math.max(0, it.closingValue))}</span>,
           ])}
         />

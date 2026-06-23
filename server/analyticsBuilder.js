@@ -21,10 +21,17 @@ function daysBetween(d1, d2) {
   return Math.floor((d2 - d1) / 86400000);
 }
 
-export function buildAnalytics(dashData) {
-  const itemFacts = Array.isArray(dashData?.itemFacts) ? dashData.itemFacts : [];
-  const ledgerFacts = Array.isArray(dashData?.ledgerFacts) ? dashData.ledgerFacts : [];
+export function buildAnalytics(dashData, options = {}) {
+  let itemFacts = Array.isArray(dashData?.itemFacts) ? dashData.itemFacts : [];
+  let ledgerFacts = Array.isArray(dashData?.ledgerFacts) ? dashData.ledgerFacts : [];
   const itemMaster = Array.isArray(dashData?.itemMaster) ? dashData.itemMaster : [];
+
+  // Optional period filter: restrict facts to the selected months before computing.
+  if (Array.isArray(options.months) && options.months.length) {
+    const monthSet = new Set(options.months);
+    itemFacts = itemFacts.filter((row) => monthSet.has(row.month));
+    ledgerFacts = ledgerFacts.filter((row) => monthSet.has(row.month));
+  }
 
   // ---------------------------------------------------------------- Customers
   const custMap = new Map();

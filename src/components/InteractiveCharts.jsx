@@ -1,204 +1,137 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { createChartWindow, panChartWindow, zoomChartWindow } from "../chartWindow.js";
-import { ChartControls } from "./ChartControls.jsx";
+import React from "react";
+import ReactApexChart from "react-apexcharts";
+import { PALETTE, FONT, GRID, INK, money, moneyAxis, baseChart, baseTooltip } from "./chartTheme.js";
 
-const COLORS = ["#1976d2", "#2fd083", "#f14f64", "#f6a343", "#6d6ff2", "#20a6b8", "#7c5cff", "#ff9b54", "#98a2b3", "#0f766e"];
+// Premium interactive charts powered by ApexCharts.
+// Public API is unchanged so every page upgrades automatically:
+//   <BarChart rows={[[label, value], ...]} />
+//   <DonutChart rows={[[label, value], ...]} />
+//   <LineChart series={[{ name, values:[] }]} months={[...]} labels={{key:display}} />
 
-function money(value) {
-  return `INR ${((Number(value) || 0) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })}L`;
+function Empty() {
+  return <div className="empty">No data for current filters</div>;
 }
 
-function pct(part, total) {
-  return total ? `${((part / total) * 100).toFixed(1)}%` : "0.0%";
-}
-
+/* ------------------------------------------------------------------ BarChart */
 export function BarChart({ rows }) {
-  const [visibleCount, setVisibleCount] = useState(Math.min(8, rows.length));
-  const [active, setActive] = useState(null);
-  useEffect(() => setVisibleCount(Math.min(8, rows.length)), [rows.length]);
-  if (!rows.length) return <div className="empty">No data for current filters</div>;
-  const visibleRows = rows.slice(0, visibleCount);
-  const max = Math.max(...rows.map((row) => Math.abs(row[1])), 1);
-  const reset = () => setVisibleCount(Math.min(8, rows.length));
+  if (!rows || rows.length === 0) return <Empty />;
+  const categories = rows.map((r) => String(r[0]));
+  const data = rows.map((r) => Number(r[1]) || 0);
+  const height = Math.min(520, Math.max(240, categories.length * 42 + 20));
+
+  const options = {
+    chart: baseChart("bar"),
+    colors: ["#2563eb"],
+    plotOptions: {
+      bar: { horizontal: true, borderRadius: 6, borderRadiusApplication: "end", barHeight: "62%", distributed: false },
+    },
+    fill: {
+      type: "gradient",
+      gradient: { type: "horizontal", shade: "light", gradientToColors: ["#60a5fa"], stops: [0, 100], opacityFrom: 1, opacityTo: 1 },
+    },
+    dataLabels: { enabled: false },
+    grid: { borderColor: GRID, strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
+    states: { hover: { filter: { type: "darken", value: 0.9 } }, active: { filter: { type: "darken", value: 0.82 } } },
+    xaxis: {
+      categories,
+      labels: { formatter: moneyAxis, style: { colors: INK, fontSize: "11px" } },
+      axisBorder: { show: false }, axisTicks: { show: false },
+    },
+    yaxis: { labels: { style: { colors: INK, fontSize: "12px" }, maxWidth: 220 } },
+    tooltip: { ...baseTooltip, y: { formatter: money, title: { formatter: () => "" } } },
+  };
+
   return (
-    <div className="chart-frame" role="img" aria-label={`Ranked bar chart with ${rows.length} values`}>
-      {rows.length > 8 ? (
-        <ChartControls
-          canZoomIn={visibleCount > 4}
-          canZoomOut={visibleCount < rows.length}
-          onZoomIn={() => setVisibleCount((count) => Math.max(4, count - 2))}
-          onZoomOut={() => setVisibleCount((count) => Math.min(rows.length, count + 2))}
-          onReset={reset}
-        />
-      ) : null}
-      <div className="bar-chart">
-        {visibleRows.map(([label, value], index) => (
-          <div
-            className={`bar-row ${active === index ? "is-active" : ""}`}
-            key={`${label}-${index}`}
-            tabIndex="0"
-            onMouseEnter={() => setActive(index)}
-            onMouseLeave={() => setActive(null)}
-            onFocus={() => setActive(index)}
-            onBlur={() => setActive(null)}
-            aria-label={`${label}: ${money(value)}`}
-          >
-            <div className="bar-label" title={label}>{label}</div>
-            <div className="bar-track">
-              <div className="bar-fill" style={{ width: `${Math.max(1, Math.abs(value) / max * 100)}%`, background: COLORS[index % COLORS.length] }} />
-            </div>
-            <div className="bar-value">{money(value)}</div>
-            {active === index ? <div className="chart-tooltip bar-tooltip">{label}<strong>{money(value)}</strong></div> : null}
-          </div>
-        ))}
-      </div>
+    <div className="chart-frame apex-frame">
+      <ReactApexChart options={options} series={[{ name: "Value", data }]} type="bar" height={height} />
     </div>
   );
 }
 
-function polarPoint(cx, cy, radius, angle) {
-  const radians = Math.PI * angle / 180;
-  return [cx + radius * Math.cos(radians), cy + radius * Math.sin(radians)];
-}
-
+/* ----------------------------------------------------------------- DonutChart */
 export function DonutChart({ rows }) {
-  const [active, setActive] = useState(null);
-  if (!rows.length) return <div className="empty">No data for current filters</div>;
-  const shown = rows.slice(0, 8);
-  const total = shown.reduce((acc, row) => acc + Math.abs(row[1]), 0) || 1;
-  let start = -90;
-  const slices = shown.map(([label, value], index) => {
-    const angle = Math.abs(value) / total * 360;
-    const end = start + Math.min(angle, 359.999);
-    const [sx, sy] = polarPoint(145, 124, 82, start);
-    const [ex, ey] = polarPoint(145, 124, 82, end);
-    const path = `M 145 124 L ${sx} ${sy} A 82 82 0 ${angle > 180 ? 1 : 0} 1 ${ex} ${ey} Z`;
-    start += angle;
-    return { label, value, index, path };
-  });
-  const activeRow = active === null ? null : shown[active];
+  if (!rows || rows.length === 0) return <Empty />;
+  const top = rows.slice(0, 8);
+  const labels = top.map((r) => String(r[0]));
+  const series = top.map((r) => Math.abs(Number(r[1]) || 0));
+
+  const options = {
+    chart: { ...baseChart("donut"), animations: { ...baseChart("donut").animations, speed: 750 } },
+    labels,
+    colors: PALETTE,
+    stroke: { width: 2, colors: ["#ffffff"] },
+    fill: { type: "gradient", gradient: { shade: "light", shadeIntensity: 0.25 } },
+    legend: {
+      position: "right", fontSize: "12px", fontFamily: FONT, fontWeight: 500,
+      labels: { colors: INK }, markers: { width: 10, height: 10, radius: 3 },
+      itemMargin: { vertical: 4 }, formatter: (name) => (name.length > 22 ? `${name.slice(0, 22)}…` : name),
+    },
+    dataLabels: {
+      enabled: true, formatter: (val) => `${Number(val).toFixed(1)}%`,
+      style: { fontSize: "11px", fontWeight: 700, fontFamily: FONT },
+      dropShadow: { enabled: true, blur: 1, opacity: 0.35 },
+    },
+    plotOptions: {
+      pie: {
+        expandOnClick: true,
+        offsetX: -8,
+        donut: {
+          size: "66%",
+          labels: {
+            show: true,
+            name: { fontSize: "13px", color: INK, offsetY: -2 },
+            value: { fontSize: "20px", fontWeight: 800, color: "#161d2b", offsetY: 4, formatter: money },
+            total: { show: true, label: "Total", color: INK, fontSize: "13px", formatter: (w) => money(w.globals.seriesTotals.reduce((a, b) => a + b, 0)) },
+          },
+        },
+      },
+    },
+    states: { hover: { filter: { type: "lighten", value: 0.06 } }, active: { filter: { type: "darken", value: 0.12 } } },
+    tooltip: {
+      ...baseTooltip, fillSeriesColor: false,
+      y: { formatter: (val, opts) => {
+        const total = opts?.globals?.seriesTotals?.reduce((a, b) => a + b, 0) || 0;
+        const share = total ? ((val / total) * 100).toFixed(1) : "0.0";
+        return `${money(val)}  ·  ${share}%`;
+      } },
+    },
+    responsive: [{ breakpoint: 720, options: { legend: { position: "bottom" }, plotOptions: { pie: { offsetX: 0 } } } }],
+  };
+
   return (
-    <div className="chart-frame donut-frame">
-      <svg className="donut-svg" viewBox="0 0 620 250" role="img" aria-label={`Donut chart showing ${shown.length} categories with a total of ${money(total)}`}>
-        {slices.map((slice) => (
-          <path
-            key={slice.label}
-            d={slice.path}
-            className={`donut-slice ${active === slice.index ? "is-active" : ""}`}
-            fill={COLORS[slice.index % COLORS.length]}
-            tabIndex="0"
-            onMouseEnter={() => setActive(slice.index)}
-            onMouseLeave={() => setActive(null)}
-            onFocus={() => setActive(slice.index)}
-            onBlur={() => setActive(null)}
-            aria-label={`${slice.label}: ${money(slice.value)}, ${pct(Math.abs(slice.value), total)}`}
-          />
-        ))}
-        <circle cx="145" cy="124" r="50" fill="var(--surface)" />
-        <text x="145" y="122" textAnchor="middle" className="svg-label">{activeRow ? activeRow[0].slice(0, 16) : "Total"}</text>
-        <text x="145" y="140" textAnchor="middle" className="tick">{money(activeRow ? activeRow[1] : total)}</text>
-        {shown.map(([label, value], index) => (
-          <g key={label} className={active === index ? "legend-active" : ""}>
-            <rect x="305" y={34 + index * 22} width="9" height="9" rx="2" fill={COLORS[index % COLORS.length]} />
-            <text x="322" y={42 + index * 22} className="svg-label">{label.slice(0, 30)}</text>
-            <text x="590" y={42 + index * 22} className="tick" textAnchor="end">{pct(Math.abs(value), total)}</text>
-          </g>
-        ))}
-      </svg>
+    <div className="chart-frame donut-frame apex-frame">
+      <ReactApexChart options={options} series={series} type="donut" height={320} />
     </div>
   );
 }
 
+/* ----------------------------------------------------------------- LineChart */
 export function LineChart({ series, months, labels }) {
-  const [windowState, setWindowState] = useState(() => createChartWindow(months.length));
-  const [tooltip, setTooltip] = useState(null);
-  const drag = useRef(null);
-  useEffect(() => setWindowState(createChartWindow(months.length)), [months.length]);
-  const visibleMonths = months.slice(windowState.start, windowState.start + windowState.size);
-  const visibleSeries = useMemo(() => series.map((item) => ({
-    ...item,
-    values: item.values.slice(windowState.start, windowState.start + windowState.size),
-  })), [series, windowState]);
-  const width = 760;
-  const height = 245;
-  const left = 44;
-  const right = 18;
-  const top = 24;
-  const bottom = 34;
-  const allValues = visibleSeries.flatMap((item) => item.values);
-  const max = Math.max(...allValues, 1);
-  const xStep = (width - left - right) / Math.max(visibleMonths.length - 1, 1);
-  const y = (value) => top + (height - top - bottom) * (1 - value / max);
-  const pan = (amount) => setWindowState((current) => panChartWindow(current, months.length, amount));
-  const onPointerDown = (event) => {
-    event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { x: event.clientX, start: windowState.start };
+  if (!series || series.length === 0 || !months || months.length === 0) return <Empty />;
+  const categories = months.map((m) => (labels && labels[m]) || m);
+  const apexSeries = series.map((s) => ({ name: s.name, data: (s.values || []).map((v) => Number(v) || 0) }));
+
+  const options = {
+    chart: { ...baseChart("area"), animations: { ...baseChart("area").animations, speed: 750 } },
+    colors: PALETTE,
+    stroke: { curve: "smooth", width: 3, lineCap: "round" },
+    fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.32, opacityTo: 0.02, stops: [0, 92] } },
+    dataLabels: { enabled: false },
+    markers: { size: 0, strokeWidth: 2, strokeColors: "#fff", hover: { size: 6 } },
+    grid: { borderColor: GRID, strokeDashArray: 4, padding: { left: 6, right: 8 } },
+    xaxis: {
+      categories, tickPlacement: "on",
+      labels: { style: { colors: INK, fontSize: "11px" }, rotate: 0, hideOverlappingLabels: true },
+      axisBorder: { show: false }, axisTicks: { color: GRID },
+    },
+    yaxis: { labels: { formatter: moneyAxis, style: { colors: INK, fontSize: "11px" } } },
+    legend: { position: "top", horizontalAlign: "left", fontSize: "12px", fontFamily: FONT, labels: { colors: INK }, markers: { width: 10, height: 10, radius: 3 } },
+    tooltip: { ...baseTooltip, shared: true, intersect: false, x: { show: true }, y: { formatter: money } },
   };
-  const onPointerMove = (event) => {
-    if (!drag.current || windowState.size >= months.length) return;
-    const monthPixels = Math.max(28, event.currentTarget.getBoundingClientRect().width / windowState.size);
-    const delta = Math.round((drag.current.x - event.clientX) / monthPixels);
-    setWindowState((current) => panChartWindow({ ...current, start: drag.current.start }, months.length, delta));
-  };
+
   return (
-    <div className="chart-frame line-frame">
-      <ChartControls
-        canZoomIn={windowState.size > Math.min(4, months.length)}
-        canZoomOut={windowState.size < months.length}
-        canPanBack={windowState.start > 0}
-        canPanForward={windowState.start + windowState.size < months.length}
-        onZoomIn={() => setWindowState((current) => zoomChartWindow(current, months.length, "in"))}
-        onZoomOut={() => setWindowState((current) => zoomChartWindow(current, months.length, "out"))}
-        onReset={() => setWindowState(createChartWindow(months.length))}
-        onPanBack={() => pan(-1)}
-        onPanForward={() => pan(1)}
-      />
-      <svg
-        className={`line-svg ${windowState.size < months.length ? "is-zoomed" : ""}`}
-        viewBox={`0 0 ${width} ${height}`}
-        role="img"
-        aria-label={`Monthly trend chart from ${labels[visibleMonths[0]] || visibleMonths[0]} to ${labels[visibleMonths.at(-1)] || visibleMonths.at(-1)}. Use chart controls to zoom and pan.`}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={() => { drag.current = null; }}
-        onPointerCancel={() => { drag.current = null; }}
-      >
-        {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
-          const yy = top + (height - top - bottom) * tick;
-          return <line key={tick} x1={left} y1={yy} x2={width - right} y2={yy} className="axis" />;
-        })}
-        {visibleSeries.map((item, seriesIndex) => (
-          <g key={item.name}>
-            <rect x={left + seriesIndex * 130} y="4" width="9" height="9" rx="2" fill={COLORS[seriesIndex % COLORS.length]} />
-            <text x={left + 14 + seriesIndex * 130} y="12" className="tick">{item.name}</text>
-            <polyline points={item.values.map((value, index) => `${left + index * xStep},${y(value)}`).join(" ")} fill="none" stroke={COLORS[seriesIndex % COLORS.length]} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-            {item.values.map((value, index) => (
-              <circle
-                key={`${item.name}-${visibleMonths[index]}`}
-                cx={left + index * xStep}
-                cy={y(value)}
-                r="4"
-                className="line-point"
-                fill={COLORS[seriesIndex % COLORS.length]}
-                tabIndex="0"
-                onMouseEnter={() => setTooltip({ x: left + index * xStep, y: y(value), label: `${item.name} · ${labels[visibleMonths[index]]}: ${money(value)}` })}
-                onMouseLeave={() => setTooltip(null)}
-                onFocus={() => setTooltip({ x: left + index * xStep, y: y(value), label: `${item.name} · ${labels[visibleMonths[index]]}: ${money(value)}` })}
-                onBlur={() => setTooltip(null)}
-                aria-label={`${item.name}, ${labels[visibleMonths[index]]}: ${money(value)}`}
-              />
-            ))}
-          </g>
-        ))}
-        {visibleMonths.map((month, index) => <text key={month} x={left + index * xStep} y={height - 10} textAnchor="middle" className="tick">{labels[month] || month}</text>)}
-        {tooltip ? (
-          <g className="svg-tooltip" transform={`translate(${Math.min(width - 215, Math.max(6, tooltip.x - 100))} ${Math.max(18, tooltip.y - 38)})`}>
-            <rect width="210" height="28" rx="5" />
-            <text x="105" y="18" textAnchor="middle">{tooltip.label}</text>
-          </g>
-        ) : null}
-      </svg>
-      <div className="chart-range" aria-live="polite">{labels[visibleMonths[0]]} - {labels[visibleMonths.at(-1)]}</div>
+    <div className="chart-frame line-frame apex-frame">
+      <ReactApexChart options={options} series={apexSeries} type="area" height={320} />
     </div>
   );
 }

@@ -13,9 +13,13 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
     "@vitejs/plugin-react": "^5.1.1",
+    "apexcharts": "^5.15.2",
     "express": "^5.2.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "multer": "^2.2.0",
     "react": "^19.2.1",
+    "react-apexcharts": "^2.1.1",
     "react-dom": "^19.2.1",
     "recharts": "^3.8.1",
     "typescript": "^5.9.3",

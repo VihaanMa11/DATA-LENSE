@@ -13,6 +13,7 @@ import { SalesForecast } from "./pages/SalesForecast.jsx";
 import { ProductForecast } from "./pages/ProductForecast.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { money, num, pct, Kpi, SectionHead, Card, Highlights, RatioList, Table } from "./components/ui.jsx";
+import { PeriodContext } from "./periodContext.js";
 const MONTH_LABELS = {
   "2025-04": "Apr", "2025-05": "May", "2025-06": "Jun", "2025-07": "Jul", "2025-08": "Aug", "2025-09": "Sep",
   "2025-10": "Oct", "2025-11": "Nov", "2025-12": "Dec", "2026-01": "Jan", "2026-02": "Feb", "2026-03": "Mar",
@@ -97,6 +98,81 @@ function signedGroup(positiveRows, negativeRows, key, limit = 10) {
 
 function monthsForPeriod(period) {
   return PERIOD_MONTHS[period] || [period];
+}
+
+const QUARTERS = [
+  ["Q1", PERIOD_MONTHS.Q1],
+  ["Q2", PERIOD_MONTHS.Q2],
+  ["Q3", PERIOD_MONTHS.Q3],
+  ["Q4", PERIOD_MONTHS.Q4],
+];
+
+function sameMonthSet(a, b) {
+  if (a.length !== b.length) return false;
+  const sb = new Set(b);
+  return a.every((m) => sb.has(m));
+}
+
+// Human label for whatever months are currently selected.
+function describePeriod(months) {
+  const list = MONTH_ORDER.filter((m) => months.includes(m));
+  if (list.length === 0) return "No period";
+  if (list.length === MONTH_ORDER.length) return "Full Year";
+  if (sameMonthSet(list, PERIOD_MONTHS.H1)) return "H1 · Apr–Sep";
+  if (sameMonthSet(list, PERIOD_MONTHS.H2)) return "H2 · Oct–Mar";
+  const set = new Set(list);
+  const fullQ = QUARTERS.filter(([, ms]) => ms.every((m) => set.has(m)));
+  if (fullQ.length >= 1 && fullQ.flatMap(([, ms]) => ms).length === list.length) {
+    return fullQ.map(([q]) => q).join(" + ");
+  }
+  const labels = list.map((m) => MONTH_LABELS[m]);
+  return labels.length <= 4 ? labels.join(", ") : `${labels.length} months`;
+}
+
+// Calendar-style period selector.
+// Full Year / H1 / H2 are macro presets — single-select, they REPLACE the selection (granular=false).
+// Quarters and months are granular multi-select: the FIRST click after a macro starts a
+// FRESH selection (only what you clicked); further clicks toggle additively.
+function PeriodBar({ months, granular, onChange }) {
+  const set = new Set(months);
+  const isAll = !granular && months.length === MONTH_ORDER.length;
+  const h1Active = !granular && sameMonthSet(months, PERIOD_MONTHS.H1);
+  const h2Active = !granular && sameMonthSet(months, PERIOD_MONTHS.H2);
+
+  const macro = (group) => onChange([...group], false);
+  const pick = (group) => {
+    if (!granular) { onChange([...group], true); return; } // fresh start from a macro preset
+    const next = new Set(months);
+    const allIn = group.every((m) => next.has(m));
+    group.forEach((m) => (allIn ? next.delete(m) : next.add(m)));
+    const ordered = MONTH_ORDER.filter((m) => next.has(m));
+    if (!ordered.length) { onChange([...MONTH_ORDER], false); return; } // empty -> Full Year
+    onChange(ordered, true);
+  };
+
+  const monthActive = (m) => granular && set.has(m);
+  const quarterActive = (ms) => granular && ms.every((m) => set.has(m));
+
+  return (
+    <div className="period-bar" role="group" aria-label="Select reporting period">
+      <div className="period-row period-row-top">
+        <button type="button" className={`period-chip lead ${isAll ? "active" : ""}`} aria-pressed={isAll} onClick={() => macro(MONTH_ORDER)}>Full Year</button>
+        <span className="period-div" aria-hidden="true" />
+        <button type="button" className={`period-chip ${h1Active ? "active" : ""}`} aria-pressed={h1Active} onClick={() => macro(PERIOD_MONTHS.H1)}>H1</button>
+        <button type="button" className={`period-chip ${h2Active ? "active" : ""}`} aria-pressed={h2Active} onClick={() => macro(PERIOD_MONTHS.H2)}>H2</button>
+        <span className="period-div" aria-hidden="true" />
+        {QUARTERS.map(([q, ms]) => (
+          <button key={q} type="button" className={`period-chip quarter ${quarterActive(ms) ? "active" : ""}`} aria-pressed={quarterActive(ms)} onClick={() => pick(ms)}>{q}</button>
+        ))}
+      </div>
+      <div className="period-row period-row-months">
+        <span className="period-div" aria-hidden="true" />
+        {MONTH_ORDER.map((m) => (
+          <button key={m} type="button" className={`period-chip month ${monthActive(m) ? "active" : ""}`} aria-pressed={monthActive(m)} onClick={() => pick([m])}>{MONTH_LABELS[m]}</button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function useDashboardData(onUnauthorized) {
@@ -327,7 +403,7 @@ function Dashboard({ data, filters }) {
   const ledgerFacts = data.ledgerFacts || [];
 
   const filtered = useMemo(() => {
-    const selectedMonths = monthsForPeriod(filters.period);
+    const selectedMonths = filters.months && filters.months.length ? filters.months : MONTH_ORDER;
     const matchesSearch = (row) => {
       if (!filters.search) return true;
       const text = [row.party, row.account, row.item, row.voucher, row.itemGroup, row.accountGroup, row.transport].join(" ").toLowerCase();
@@ -404,13 +480,13 @@ function Dashboard({ data, filters }) {
   const debitNotes = groupRows(filtered.ledgers.filter((row) => row.tx === "Debit Note"), "account", "businessAmount", 10);
 
   const active = filters.section;
-  const periodLabel = PERIODS.find(([key]) => key === filters.period)?.[1] || "Full Year";
+  const periodLabel = describePeriod(filters.months || MONTH_ORDER);
 
   return (
     <>
       {active === "executive" && (
         <section className="section active">
-          <SectionHead code="CEO" title="CEO View" sub={`${periodLabel} - all amounts shown in INR Lakhs`} />
+          <SectionHead code="CEO" title="CEO View" sub={`${periodLabel} - all amounts shown in ₹ Lakhs`} />
           <div className="kpis reference-kpis">
             <Kpi title="Total Sales" value={money(totals.netSales)} meta={`${num(totals.salesLines.length)} sales lines`} tone="#1976d2" />
             <Kpi title="Total Receipt" value={money(totals.receipts)} meta="Voucher-row debit convention" icon="money" tone="#2fd083" />
@@ -430,7 +506,7 @@ function Dashboard({ data, filters }) {
                 <p>Purchase - Debit Note(Net)</p>
               </div>
               <div>
-                <span className="stat-icon cost">$</span>
+                <span className="stat-icon cost">₹</span>
                 <b>{money(Math.max(totals.netPurchases, 0))}</b>
                 <p>Cost</p>
               </div>
@@ -590,7 +666,8 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
   const { data, error, loading, load, setData, setError } = useDashboardData(onUnauthorized);
   const [filters, setFilters] = useState({
     section: "executive",
-    period: "FY",
+    months: [...MONTH_ORDER],
+    periodGranular: false,
     tx: "All",
     party: "All",
     state: "All",
@@ -677,9 +754,7 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
               <input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Search reports, parties, items..." />
             </label>
             <ToggleSwitch checked={grossMode} onChange={setGrossMode} />
-            <select className="period-select" value={filters.period} onChange={(event) => updateFilter("period", event.target.value)}>
-              {PERIODS.map(([value, label]) => <option key={value} value={value}>{label === "Full Year" ? "All Years" : label}</option>)}
-            </select>
+            <PeriodBar months={filters.months || MONTH_ORDER} granular={filters.periodGranular || false} onChange={(next, gran) => setFilters((f) => ({ ...f, months: next, periodGranular: gran }))} />
           </div>
 
           <details className="downloadbar advanced-filters">
@@ -696,17 +771,19 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
 
           {loading && !data && !ANALYTICS_PAGES.has(filters.section) && <div className="loading">Loading dashboard data...</div>}
           {ANALYTICS_PAGES.has(filters.section) ? (
-            <ErrorBoundary resetKey={filters.section}>
-              {filters.section === "receivables" ? <CustomerReceivables /> :
-               filters.section === "payables" ? <VendorPayables /> :
-               filters.section === "customerpareto" ? <CustomerPareto /> :
-               filters.section === "productpareto" ? <ProductPareto /> :
-               filters.section === "expenses" ? <ExpenseAnalysis /> :
-               filters.section === "stockmovement" ? <StockMovement /> :
-               filters.section === "customeranalysis" ? <CustomerAnalysis /> :
-               filters.section === "salesforecast" ? <SalesForecast /> :
-               filters.section === "productforecast" ? <ProductForecast /> : null}
-            </ErrorBoundary>
+            <PeriodContext.Provider value={filters.months || MONTH_ORDER}>
+              <ErrorBoundary resetKey={filters.section}>
+                {filters.section === "receivables" ? <CustomerReceivables /> :
+                 filters.section === "payables" ? <VendorPayables /> :
+                 filters.section === "customerpareto" ? <CustomerPareto /> :
+                 filters.section === "productpareto" ? <ProductPareto /> :
+                 filters.section === "expenses" ? <ExpenseAnalysis /> :
+                 filters.section === "stockmovement" ? <StockMovement /> :
+                 filters.section === "customeranalysis" ? <CustomerAnalysis /> :
+                 filters.section === "salesforecast" ? <SalesForecast /> :
+                 filters.section === "productforecast" ? <ProductForecast /> : null}
+              </ErrorBoundary>
+            </PeriodContext.Provider>
           ) : (
             data && <Dashboard data={data} filters={filters} />
           )}

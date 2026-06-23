@@ -1,33 +1,49 @@
 import React from "react";
-import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import ReactApexChart from "react-apexcharts";
+import { GRID, INK, baseChart, baseTooltip } from "./chartTheme.js";
 
-// Bubble scatter: x = net sales (lakhs), y = collection rate %, z = active months.
-export function ScatterPlot({ data, xLabel = "Net Sales (L)", yLabel = "Collection %" }) {
+// Bubble: x = net sales (₹L), y = collection rate %, z = active months (bubble size).
+// data = [{ name, x, y, z }]
+export function ScatterPlot({ data, xLabel = "Net Sales (₹L)", yLabel = "Collection %" }) {
   if (!data || data.length === 0) return <div className="empty">No data for current filters</div>;
+
+  const series = [{ name: "Customers", data: data.map((d) => ({ x: d.x, y: d.y, z: d.z, name: d.name })) }];
+
+  const options = {
+    chart: { ...baseChart("bubble") },
+    colors: ["#2563eb"],
+    fill: { type: "gradient", gradient: { shade: "light", inverseColors: false, opacityFrom: 0.7, opacityTo: 0.35 } },
+    dataLabels: { enabled: false },
+    grid: { borderColor: GRID, strokeDashArray: 4 },
+    xaxis: {
+      type: "numeric", tickAmount: 6,
+      title: { text: xLabel, style: { color: INK, fontSize: "11px", fontWeight: 600 } },
+      labels: { formatter: (v) => `${Number(v).toFixed(0)}L`, style: { colors: INK, fontSize: "11px" } },
+      axisBorder: { show: false }, axisTicks: { color: GRID },
+    },
+    yaxis: {
+      min: 0, max: (max) => Math.max(100, Math.ceil(max)),
+      title: { text: yLabel, style: { color: INK, fontSize: "11px", fontWeight: 600 } },
+      labels: { formatter: (v) => `${Math.round(v)}%`, style: { colors: INK, fontSize: "11px" } },
+    },
+    annotations: {
+      yaxis: [{ y: 85, borderColor: "#12b76a", strokeDashArray: 5, label: { text: "Target 85%", borderColor: "#12b76a", style: { color: "#fff", background: "#12b76a", fontSize: "10px", fontWeight: 700 } } }],
+    },
+    tooltip: {
+      ...baseTooltip,
+      custom: ({ seriesIndex, dataPointIndex, w }) => {
+        const p = w.config.series[seriesIndex].data[dataPointIndex] || {};
+        return `<div style="padding:8px 11px;font-family:Inter,'Segoe UI',sans-serif;font-size:12px;line-height:1.5;">
+          <strong>${p.name || "Customer"}</strong><br/>
+          Net Sales: ₹${p.x}L<br/>Collection: ${p.y}%<br/>Active Months: ${p.z}
+        </div>`;
+      },
+    },
+  };
+
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <ScatterChart margin={{ top: 10, right: 20, bottom: 30, left: 10 }}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis type="number" dataKey="x" name={xLabel} tick={{ fontSize: 11 }} label={{ value: xLabel, position: "insideBottom", offset: -15, fontSize: 11 }} />
-        <YAxis type="number" dataKey="y" name={yLabel} tick={{ fontSize: 11 }} label={{ value: yLabel, angle: -90, position: "insideLeft", fontSize: 11 }} />
-        <ZAxis type="number" dataKey="z" range={[40, 400]} name="Active Months" />
-        <ReferenceLine y={85} stroke="#2fd083" strokeDasharray="5 4" label={{ value: "Target 85%", fontSize: 10, fill: "#2fd083" }} />
-        <Tooltip cursor={{ strokeDasharray: "3 3" }} formatter={(v, n) => [n === "Net Sales (L)" ? `${v}L` : n === "Collection %" ? `${v}%` : v, n]}
-          content={({ payload }) => {
-            if (!payload || !payload.length) return null;
-            const p = payload[0].payload;
-            return (
-              <div style={{ background: "#fff", border: "1px solid #ddd", borderRadius: 6, padding: "6px 10px", fontSize: 12 }}>
-                <strong>{p.name}</strong><br />
-                Net Sales: {p.x}L<br />
-                Collection: {p.y}%<br />
-                Active Months: {p.z}
-              </div>
-            );
-          }}
-        />
-        <Scatter data={data} fill="#1976d2" fillOpacity={0.6} />
-      </ScatterChart>
-    </ResponsiveContainer>
+    <div className="chart-frame apex-frame">
+      <ReactApexChart options={options} series={series} type="bubble" height={300} />
+    </div>
   );
 }

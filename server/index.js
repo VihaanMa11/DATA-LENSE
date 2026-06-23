@@ -414,10 +414,12 @@ async function createApp() {
     }
   });
 
-  app.get("/api/analytics", async (_req, res, next) => {
+  app.get("/api/analytics", async (req, res, next) => {
     try {
       const dash = await loadDashboard();
-      res.json(buildAnalytics(dash));
+      const monthsParam = String(req.query.months || "").trim();
+      const months = monthsParam ? monthsParam.split(",").map((m) => m.trim()).filter(Boolean) : null;
+      res.json(buildAnalytics(dash, months ? { months } : {}));
     } catch (error) {
       next(error);
     }

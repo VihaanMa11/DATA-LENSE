@@ -42,7 +42,7 @@ function Body({ a }) {
       <div className="kpis">
         <Kpi title="High Risk" value={highRisk} meta="No sale in 90+ days" tone="#f14f64" icon="card" />
         <Kpi title="Active" value={active} meta="Bought within 30 days" tone="#2fd083" icon="money" />
-        <Kpi title="Platinum Tier" value={platinum} meta="Net sales ≥ INR 5L" tone="#1976d2" icon="box" />
+        <Kpi title="Platinum Tier" value={platinum} meta="Net sales ≥ ₹5L" tone="#1976d2" icon="box" />
         <Kpi title="Total Customers" value={customers.length} meta="With sales this year" tone="#f6a343" />
       </div>
       <div className="grid2">

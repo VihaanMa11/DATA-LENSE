@@ -1,25 +1,51 @@
 import React from "react";
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from "recharts";
+import ReactApexChart from "react-apexcharts";
+import { FONT, GRID, INK, money, moneyAxis, baseChart, baseTooltip } from "./chartTheme.js";
 
-export function ParetoChart({ data, title, barLabel = "Sales (INR)" }) {
-  if (!data || data.length === 0) return <div style={{ color: "#888", padding: 16 }}>No data</div>;
+// Combo chart: ranked columns (value) + cumulative % line on a second axis, with an 80% marker.
+export function ParetoChart({ data, title, barLabel = "Net Sales" }) {
+  if (!data || data.length === 0) return <div className="empty">No data for current filters</div>;
+  const categories = data.map((d) => String(d.label));
+  const bars = data.map((d) => Number(d.value) || 0);
+  const cum = data.map((d) => Number(d.cumulativePct) || 0);
+
+  const options = {
+    chart: { ...baseChart("line"), stacked: false },
+    colors: ["#2563eb", "#f59e0b"],
+    stroke: { width: [0, 3], curve: "smooth" },
+    plotOptions: { bar: { columnWidth: "55%", borderRadius: 4, borderRadiusApplication: "end" } },
+    fill: {
+      type: ["gradient", "solid"],
+      gradient: { shade: "light", type: "vertical", opacityFrom: 0.95, opacityTo: 0.7, gradientToColors: ["#60a5fa"] },
+    },
+    dataLabels: { enabled: false },
+    markers: { size: 0, strokeColors: "#fff", hover: { size: 5 } },
+    legend: { position: "top", horizontalAlign: "left", fontFamily: FONT, labels: { colors: INK }, markers: { width: 10, height: 10, radius: 3 } },
+    grid: { borderColor: GRID, strokeDashArray: 4 },
+    xaxis: {
+      categories, tickPlacement: "on",
+      labels: { rotate: -45, rotateAlways: data.length > 8, hideOverlappingLabels: true, trim: true, style: { colors: INK, fontSize: "11px" } },
+      axisBorder: { show: false }, axisTicks: { color: GRID },
+    },
+    yaxis: [
+      { seriesName: barLabel, labels: { formatter: moneyAxis, style: { colors: INK, fontSize: "11px" } }, title: { text: barLabel, style: { color: INK, fontWeight: 600 } } },
+      { opposite: true, min: 0, max: 100, seriesName: "Cumulative %", labels: { formatter: (v) => `${Math.round(v)}%`, style: { colors: INK, fontSize: "11px" } }, title: { text: "Cumulative %", style: { color: INK, fontWeight: 600 } } },
+    ],
+    annotations: {
+      yaxis: [{ y: 80, yAxisIndex: 1, borderColor: "#ef4444", strokeDashArray: 6, label: { text: "80%", borderColor: "#ef4444", style: { color: "#fff", background: "#ef4444", fontSize: "10px" } } }],
+    },
+    tooltip: { ...baseTooltip, shared: true, intersect: false, y: [{ formatter: money }, { formatter: (v) => `${Number(v).toFixed(1)}%` }] },
+  };
+
+  const series = [
+    { name: barLabel, type: "column", data: bars },
+    { name: "Cumulative %", type: "line", data: cum },
+  ];
 
   return (
-    <div style={{ width: "100%", marginBottom: 24 }}>
-      {title && <h3 style={{ color: "#1F497D", marginBottom: 8 }}>{title}</h3>}
-      <ResponsiveContainer width="100%" height={360}>
-        <ComposedChart data={data} margin={{ top: 10, right: 40, left: 10, bottom: 80 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="label" angle={-45} textAnchor="end" interval={0} tick={{ fontSize: 11, fill: "#1F1F1F" }} />
-          <YAxis yAxisId="left" tickFormatter={v => `${(v / 100000).toFixed(1)}L`} tick={{ fontSize: 11 }} />
-          <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11 }} />
-          <Tooltip formatter={(value, name) => name === "Cumulative %" ? `${value}%` : `INR ${(value / 100000).toFixed(2)}L`} />
-          <Legend verticalAlign="top" />
-          <ReferenceLine yAxisId="right" y={80} stroke="#C00000" strokeDasharray="6 3" label={{ value: "80%", fill: "#C00000", fontSize: 11 }} />
-          <Bar yAxisId="left" dataKey="value" name={barLabel} fill="#2E75B6" radius={[2, 2, 0, 0]} />
-          <Line yAxisId="right" type="monotone" dataKey="cumulativePct" name="Cumulative %" stroke="#C55A11" strokeWidth={2} dot={false} />
-        </ComposedChart>
-      </ResponsiveContainer>
+    <div className="chart-frame apex-frame">
+      {title && <h3 style={{ color: "var(--blue)", margin: "0 0 6px", fontSize: 15, fontWeight: 700 }}>{title}</h3>}
+      <ReactApexChart options={options} series={series} type="line" height={380} />
     </div>
   );
 }
