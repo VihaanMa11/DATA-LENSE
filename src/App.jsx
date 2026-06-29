@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart, DonutChart, LineChart } from "./components/InteractiveCharts.jsx";
 import { LoginScreen } from "./components/LoginScreen.jsx";
 import { getSession, login, logout } from "./authClient.js";
+import { SheetContext } from "./sheetContext.js";
 import { CustomerReceivables } from "./pages/CustomerReceivables.jsx";
 import { VendorPayables } from "./pages/VendorPayables.jsx";
 import { CustomerPareto } from "./pages/CustomerPareto.jsx";
@@ -14,26 +15,12 @@ import { ProductForecast } from "./pages/ProductForecast.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { money, num, pct, Kpi, SectionHead, Card, Highlights, RatioList, Table } from "./components/ui.jsx";
 import { PeriodContext } from "./periodContext.js";
-const MONTH_LABELS = {
-  "2025-04": "Apr", "2025-05": "May", "2025-06": "Jun", "2025-07": "Jul", "2025-08": "Aug", "2025-09": "Sep",
-  "2025-10": "Oct", "2025-11": "Nov", "2025-12": "Dec", "2026-01": "Jan", "2026-02": "Feb", "2026-03": "Mar",
-};
-const MONTH_ORDER = Object.keys(MONTH_LABELS);
-const PERIODS = [
-  ["FY", "Full Year"], ["2025-04", "Apr"], ["2025-05", "May"], ["2025-06", "Jun"], ["2025-07", "Jul"], ["2025-08", "Aug"], ["2025-09", "Sep"],
-  ["2025-10", "Oct"], ["2025-11", "Nov"], ["2025-12", "Dec"], ["2026-01", "Jan"], ["2026-02", "Feb"], ["2026-03", "Mar"],
-  ["Q1", "Q1"], ["Q2", "Q2"], ["Q3", "Q3"], ["Q4", "Q4"], ["H1", "H1"], ["H2", "H2"], ["ASOF", "As on Date"],
-];
-const PERIOD_MONTHS = {
-  FY: MONTH_ORDER,
-  Q1: ["2025-04", "2025-05", "2025-06"],
-  Q2: ["2025-07", "2025-08", "2025-09"],
-  Q3: ["2025-10", "2025-11", "2025-12"],
-  Q4: ["2026-01", "2026-02", "2026-03"],
-  H1: ["2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09"],
-  H2: ["2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"],
-  ASOF: MONTH_ORDER,
-};
+import { DEFAULT_FY, DEFAULT_FYS, fiscalYearMonths, monthLabels, periodMonths } from "./fiscalYear.js";
+import { CeoView } from "./pages/CeoView.jsx";
+const MONTH_ORDER = fiscalYearMonths(DEFAULT_FY);
+const MONTH_LABELS = monthLabels(MONTH_ORDER);
+const PERIOD_MONTHS = periodMonths(MONTH_ORDER);
+const QUARTERS = [["Q1", PERIOD_MONTHS.Q1], ["Q2", PERIOD_MONTHS.Q2], ["Q3", PERIOD_MONTHS.Q3], ["Q4", PERIOD_MONTHS.Q4]];
 // Sidebar organised into logical groups. Each item: [id, label].
 const NAV_GROUPS = [
   ["Overview", [
@@ -96,17 +83,6 @@ function signedGroup(positiveRows, negativeRows, key, limit = 10) {
   return [...map.entries()].filter(([, value]) => value !== 0).sort((a, b) => b[1] - a[1]).slice(0, limit);
 }
 
-function monthsForPeriod(period) {
-  return PERIOD_MONTHS[period] || [period];
-}
-
-const QUARTERS = [
-  ["Q1", PERIOD_MONTHS.Q1],
-  ["Q2", PERIOD_MONTHS.Q2],
-  ["Q3", PERIOD_MONTHS.Q3],
-  ["Q4", PERIOD_MONTHS.Q4],
-];
-
 function sameMonthSet(a, b) {
   if (a.length !== b.length) return false;
   const sb = new Set(b);
@@ -114,30 +90,32 @@ function sameMonthSet(a, b) {
 }
 
 // Human label for whatever months are currently selected.
-function describePeriod(months) {
-  const list = MONTH_ORDER.filter((m) => months.includes(m));
+function describePeriod(months, monthOrder, labels, periodMap) {
+  const list = monthOrder.filter((m) => months.includes(m));
   if (list.length === 0) return "No period";
-  if (list.length === MONTH_ORDER.length) return "Full Year";
-  if (sameMonthSet(list, PERIOD_MONTHS.H1)) return "H1 · Apr–Sep";
-  if (sameMonthSet(list, PERIOD_MONTHS.H2)) return "H2 · Oct–Mar";
+  if (list.length === monthOrder.length) return "Full Year";
+  if (sameMonthSet(list, periodMap.H1)) return "H1 - Apr-Sep";
+  if (sameMonthSet(list, periodMap.H2)) return "H2 - Oct-Mar";
   const set = new Set(list);
-  const fullQ = QUARTERS.filter(([, ms]) => ms.every((m) => set.has(m)));
+  const quarters = [["Q1", periodMap.Q1], ["Q2", periodMap.Q2], ["Q3", periodMap.Q3], ["Q4", periodMap.Q4]];
+  const fullQ = quarters.filter(([, ms]) => ms.every((m) => set.has(m)));
   if (fullQ.length >= 1 && fullQ.flatMap(([, ms]) => ms).length === list.length) {
     return fullQ.map(([q]) => q).join(" + ");
   }
-  const labels = list.map((m) => MONTH_LABELS[m]);
-  return labels.length <= 4 ? labels.join(", ") : `${labels.length} months`;
+  const names = list.map((m) => labels[m]);
+  return names.length <= 4 ? names.join(", ") : `${names.length} months`;
 }
 
 // Calendar-style period selector.
 // Full Year / H1 / H2 are macro presets — single-select, they REPLACE the selection (granular=false).
 // Quarters and months are granular multi-select: the FIRST click after a macro starts a
 // FRESH selection (only what you clicked); further clicks toggle additively.
-function PeriodBar({ months, granular, onChange }) {
+function PeriodBar({ months, granular, monthOrder = MONTH_ORDER, labels = MONTH_LABELS, periodMap = PERIOD_MONTHS, onChange }) {
+  const quarters = [["Q1", periodMap.Q1], ["Q2", periodMap.Q2], ["Q3", periodMap.Q3], ["Q4", periodMap.Q4]];
   const set = new Set(months);
-  const isAll = !granular && months.length === MONTH_ORDER.length;
-  const h1Active = !granular && sameMonthSet(months, PERIOD_MONTHS.H1);
-  const h2Active = !granular && sameMonthSet(months, PERIOD_MONTHS.H2);
+  const isAll = !granular && months.length === monthOrder.length;
+  const h1Active = !granular && sameMonthSet(months, periodMap.H1);
+  const h2Active = !granular && sameMonthSet(months, periodMap.H2);
 
   const macro = (group) => onChange([...group], false);
   const pick = (group) => {
@@ -145,8 +123,8 @@ function PeriodBar({ months, granular, onChange }) {
     const next = new Set(months);
     const allIn = group.every((m) => next.has(m));
     group.forEach((m) => (allIn ? next.delete(m) : next.add(m)));
-    const ordered = MONTH_ORDER.filter((m) => next.has(m));
-    if (!ordered.length) { onChange([...MONTH_ORDER], false); return; } // empty -> Full Year
+    const ordered = monthOrder.filter((m) => next.has(m));
+    if (!ordered.length) { onChange([...monthOrder], false); return; } // empty -> Full Year
     onChange(ordered, true);
   };
 
@@ -156,36 +134,38 @@ function PeriodBar({ months, granular, onChange }) {
   return (
     <div className="period-bar" role="group" aria-label="Select reporting period">
       <div className="period-row period-row-top">
-        <button type="button" className={`period-chip lead ${isAll ? "active" : ""}`} aria-pressed={isAll} onClick={() => macro(MONTH_ORDER)}>Full Year</button>
+        <button type="button" className={`period-chip lead ${isAll ? "active" : ""}`} aria-pressed={isAll} onClick={() => macro(monthOrder)}>Full Year</button>
         <span className="period-div" aria-hidden="true" />
-        <button type="button" className={`period-chip ${h1Active ? "active" : ""}`} aria-pressed={h1Active} onClick={() => macro(PERIOD_MONTHS.H1)}>H1</button>
-        <button type="button" className={`period-chip ${h2Active ? "active" : ""}`} aria-pressed={h2Active} onClick={() => macro(PERIOD_MONTHS.H2)}>H2</button>
+        <button type="button" className={`period-chip ${h1Active ? "active" : ""}`} aria-pressed={h1Active} onClick={() => macro(periodMap.H1)}>H1</button>
+        <button type="button" className={`period-chip ${h2Active ? "active" : ""}`} aria-pressed={h2Active} onClick={() => macro(periodMap.H2)}>H2</button>
         <span className="period-div" aria-hidden="true" />
-        {QUARTERS.map(([q, ms]) => (
+        {quarters.map(([q, ms]) => (
           <button key={q} type="button" className={`period-chip quarter ${quarterActive(ms) ? "active" : ""}`} aria-pressed={quarterActive(ms)} onClick={() => pick(ms)}>{q}</button>
         ))}
       </div>
       <div className="period-row period-row-months">
         <span className="period-div" aria-hidden="true" />
-        {MONTH_ORDER.map((m) => (
-          <button key={m} type="button" className={`period-chip month ${monthActive(m) ? "active" : ""}`} aria-pressed={monthActive(m)} onClick={() => pick([m])}>{MONTH_LABELS[m]}</button>
+        {monthOrder.map((m) => (
+          <button key={m} type="button" className={`period-chip month ${monthActive(m) ? "active" : ""}`} aria-pressed={monthActive(m)} onClick={() => pick([m])}>{labels[m]}</button>
         ))}
       </div>
     </div>
   );
 }
 
-function useDashboardData(onUnauthorized) {
+function useDashboardData(sheetUrl, onUnauthorized) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(sheetUrl));
 
   async function load(force = false) {
+    if (!sheetUrl) { setData(null); setError(""); setLoading(false); return; }
     setError("");
     setLoading(true);
     try {
-      const response = await fetch(force ? "/api/refresh" : "/api/dashboard", { method: force ? "POST" : "GET" });
-      const payload = await response.json();
+      const qs = `?sheetUrl=${encodeURIComponent(sheetUrl)}`;
+      const response = await fetch(`${force ? "/api/refresh" : "/api/dashboard"}${qs}`, { method: force ? "POST" : "GET", credentials: "include" });
+      const payload = await response.json().catch(() => ({}));
       if (response.status === 401) {
         onUnauthorized();
         return;
@@ -201,29 +181,19 @@ function useDashboardData(onUnauthorized) {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [sheetUrl]);
 
+  // Lightweight auth heartbeat — surfaces an expired session without polling data.
   useEffect(() => {
+    if (!sheetUrl) return undefined;
     const id = window.setInterval(() => {
       if (document.hidden) return;
-      fetch("/api/status")
-        .then((response) => {
-          if (response.status === 401) {
-            onUnauthorized();
-            return null;
-          }
-          return response.json();
-        })
-        .then((payload) => {
-          if (!payload) return;
-          if (payload.sourceSignature && data?.sourceSignature && payload.sourceSignature !== data.sourceSignature) {
-            load(false);
-          }
-        })
+      fetch("/api/status", { credentials: "include" })
+        .then((response) => { if (response.status === 401) onUnauthorized(); })
         .catch(() => {});
-    }, 15000);
+    }, 30000);
     return () => window.clearInterval(id);
-  }, [data?.sourceSignature, onUnauthorized]);
+  }, [sheetUrl, onUnauthorized]);
 
   return { data, error, loading, load, setData, setError };
 }
@@ -251,72 +221,54 @@ function ToggleSwitch({ checked, onChange }) {
   );
 }
 
-function DataSourcePanel({ data, reload, setData, setError }) {
+function DataSourceSettings({ currentUrl, onConnected, setError }) {
   const [open, setOpen] = useState(false);
-  const [sourceType, setSourceType] = useState(data?.sourceType || "local-folder");
-  const [sourceDir, setSourceDir] = useState(data?.sourceType === "local-folder" ? data?.sourceDir || "" : "");
-  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [url, setUrl] = useState(currentUrl || "");
+  const [status, setStatus] = useState("idle"); // idle | syncing | success | error
+  const [statusMsg, setStatusMsg] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-    fetch("/api/source")
-      .then((response) => response.json())
-      .then((config) => {
-        setSourceType(config.sourceType || "local-folder");
-        setSourceDir(config.sourceDir || "");
-        setGoogleSheetUrl(config.googleSheetUrl || config.googleSheetId || "");
-      })
-      .catch(() => {});
-  }, [open]);
+  useEffect(() => { setUrl(currentUrl || ""); }, [currentUrl]);
 
-  async function saveSource() {
-    setSaving(true);
-    setError("");
+  async function syncNow() {
+    const trimmed = url.trim();
+    if (!trimmed) { setStatus("error"); setStatusMsg("Paste a Google Sheets URL first."); return; }
+    setStatus("syncing"); setStatusMsg("Fetching workbook from Google Sheets…"); setError("");
     try {
-      const response = await fetch("/api/source", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceType, sourceDir, googleSheetUrl }),
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Unable to connect data source");
-      setData(payload.data);
-      setOpen(false);
+      const response = await fetch(`/api/sync?sheetUrl=${encodeURIComponent(trimmed)}`, { method: "POST", credentials: "include" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Sync failed");
+      setStatus("success"); setStatusMsg("Synced — dashboard updated.");
+      onConnected(trimmed, payload);
+      window.setTimeout(() => setOpen(false), 800);
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
+      setStatus("error"); setStatusMsg(err.message);
     }
   }
 
   return (
     <div className="source-shell">
-      <button className="top-button" onClick={() => setOpen((value) => !value)}>Connect Data Source</button>
-      <button className="top-button muted" onClick={() => reload(true)}>Refresh</button>
+      <button className="top-button" onClick={() => setOpen((value) => !value)}>
+        <span className={`sync-dot ${currentUrl ? "on" : "off"}`} aria-hidden="true" />
+        Data Source
+      </button>
       {open && (
-        <div className="source-popover">
-          <div className="source-title">Connect dashboard data</div>
-          <div className="source-tabs" role="tablist" aria-label="Data source type">
-            <button type="button" role="tab" aria-selected={sourceType === "local-folder"} onClick={() => setSourceType("local-folder")}>CSV / Excel Folder</button>
-            <button type="button" role="tab" aria-selected={sourceType === "google-sheet"} onClick={() => setSourceType("google-sheet")}>Google Sheets</button>
+        <div className="source-popover settings-popover" role="dialog" aria-label="Data Source settings">
+          <div className="source-title">Data Source</div>
+          <div className="source-copy">Paste a Google Sheets share URL. The dashboard reads it live on every sync — no database, nothing stored server-side.</div>
+          <label className="source-field">
+            <span>Google Sheets URL</span>
+            <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." spellCheck={false} autoComplete="off" />
+            <small>Use the master template tabs: Sales, Purchase, Receipt, Payment, ItemMaster and AccountMaster.</small>
+          </label>
+          <div className={`sync-status ${status}`} role="status" aria-live="polite">
+            <span className="sync-indicator" aria-hidden="true" />
+            <span>{statusMsg || (currentUrl ? "Connected to a sheet." : "No sheet connected yet.")}</span>
           </div>
-          {sourceType === "google-sheet" ? (
-            <label className="source-field">
-              <span>Google Sheets URL or ID</span>
-              <input value={googleSheetUrl} onChange={(event) => setGoogleSheetUrl(event.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." />
-              <small>The workbook is re-read automatically; keep the existing tab and field names unchanged.</small>
-            </label>
-          ) : (
-            <label className="source-field">
-              <span>CSV / Excel source folder</span>
-              <input value={sourceDir} onChange={(event) => setSourceDir(event.target.value)} placeholder="C:\\Data\\Exports" />
-              <small>Updated files are detected from their modified timestamps.</small>
-            </label>
-          )}
           <div className="source-actions">
-            <button className="top-button muted" onClick={() => setOpen(false)}>Cancel</button>
-            <button className="top-button" onClick={saveSource} disabled={saving || (sourceType === "google-sheet" ? !googleSheetUrl.trim() : !sourceDir.trim())}>{saving ? "Connecting..." : "Connect"}</button>
+            <button className="top-button muted" onClick={() => setOpen(false)}>Close</button>
+            <button className="top-button primary" onClick={syncNow} disabled={status === "syncing" || !url.trim()}>
+              {status === "syncing" ? "Syncing…" : "Sync Now"}
+            </button>
           </div>
         </div>
       )}
@@ -324,92 +276,19 @@ function DataSourcePanel({ data, reload, setData, setError }) {
   );
 }
 
-function UploadFilesPanel({ reload, setData, setError }) {
-  const [open, setOpen] = useState(false);
-  const [files, setFiles] = useState([]);
-  const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState("");
-
-  async function uploadFiles() {
-    setError("");
-    setMessage("");
-    if (!files.length) {
-      setMessage("Choose CSV/XLSX files first.");
-      return;
-    }
-
-    setUploading(true);
-    try {
-      const form = new FormData();
-      files.forEach((file) => form.append("files", file));
-      const response = await fetch("/api/upload-dashboard", {
-        method: "POST",
-        body: form,
-      });
-      const payload = await response.json();
-      if (!response.ok && response.status !== 202) {
-        throw new Error(payload.error || "Upload failed");
-      }
-      if (payload.processed === false) {
-        setMessage(payload.message || "Files uploaded to Supabase. Processing is pending.");
-        return;
-      }
-      setData(payload);
-      setOpen(false);
-      setFiles([]);
-      reload(false);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  return (
-    <div className="source-shell">
-      <button className="top-button upload-button" onClick={() => setOpen((value) => !value)}>Upload Files</button>
-      {open && (
-        <div className="source-popover upload-popover">
-          <div className="source-title">Upload CSV / Excel Files</div>
-          <div className="source-copy">Upload the accounting export files. The backend stores the files in Supabase, then updates the active dashboard snapshot when processing succeeds.</div>
-          <input
-            className="file-input"
-            type="file"
-            multiple
-            accept=".csv,.xlsx,.xls"
-            onChange={(event) => setFiles([...event.target.files])}
-          />
-          <div className="upload-list">
-            {files.length ? files.map((file) => (
-              <div className="upload-file" key={`${file.name}-${file.size}`}>
-                <span>{file.name}</span>
-                <b>{(file.size / 1024 / 1024).toFixed(2)} MB</b>
-              </div>
-            )) : <div className="source-copy">No files selected.</div>}
-          </div>
-          {message && <div className="upload-message">{message}</div>}
-          <div className="source-actions">
-            <button className="top-button muted" onClick={() => setOpen(false)}>Cancel</button>
-            <button className="top-button" onClick={uploadFiles} disabled={uploading}>{uploading ? "Uploading..." : "Upload"}</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Dashboard({ data, filters }) {
+function Dashboard({ data, filters, monthOrder, labels, periodMap }) {
   const itemFacts = data.itemFacts || [];
   const ledgerFacts = data.ledgerFacts || [];
 
   const filtered = useMemo(() => {
-    const selectedMonths = filters.months && filters.months.length ? filters.months : MONTH_ORDER;
+    const selectedMonths = filters.months && filters.months.length ? filters.months : monthOrder;
     const matchesSearch = (row) => {
       if (!filters.search) return true;
       const text = [row.party, row.account, row.item, row.voucher, row.itemGroup, row.accountGroup, row.transport].join(" ").toLowerCase();
       return text.includes(filters.search.toLowerCase());
     };
     const items = itemFacts.filter((row) => {
+      if (filters.fy && row.fy && row.fy !== filters.fy) return false;
       if (!selectedMonths.includes(row.month) || !matchesSearch(row)) return false;
       if (filters.tx !== "All" && row.tx !== filters.tx) return false;
       if (filters.party !== "All" && row.party !== filters.party) return false;
@@ -418,6 +297,7 @@ function Dashboard({ data, filters }) {
       return true;
     });
     const ledgers = ledgerFacts.filter((row) => {
+      if (filters.fy && row.fy && row.fy !== filters.fy) return false;
       if (!selectedMonths.includes(row.month) || !matchesSearch(row)) return false;
       if (filters.tx !== "All" && row.tx !== filters.tx) return false;
       if (filters.party !== "All" && row.account !== filters.party) return false;
@@ -455,8 +335,8 @@ function Dashboard({ data, filters }) {
   }, [filtered]);
 
   const monthlySeries = useMemo(() => {
-    const itemTx = (tx) => MONTH_ORDER.map((month) => sum(filtered.items.filter((row) => row.tx === tx && row.isHeader && row.month === month), "finalAmount"));
-    const ledgerTx = (tx) => MONTH_ORDER.map((month) => sum(filtered.ledgers.filter((row) => row.tx === tx && row.month === month), "businessAmount"));
+    const itemTx = (tx) => monthOrder.map((month) => sum(filtered.items.filter((row) => row.tx === tx && row.isHeader && row.month === month), "finalAmount"));
+    const ledgerTx = (tx) => monthOrder.map((month) => sum(filtered.ledgers.filter((row) => row.tx === tx && row.month === month), "businessAmount"));
     return [
       { name: "Sales", values: itemTx("Sales") },
       { name: "Purchases", values: itemTx("Purchase") },
@@ -480,72 +360,13 @@ function Dashboard({ data, filters }) {
   const debitNotes = groupRows(filtered.ledgers.filter((row) => row.tx === "Debit Note"), "account", "businessAmount", 10);
 
   const active = filters.section;
-  const periodLabel = describePeriod(filters.months || MONTH_ORDER);
+  const periodLabel = describePeriod(filters.months || monthOrder, monthOrder, labels, periodMap);
 
   return (
     <>
       {active === "executive" && (
         <section className="section active">
-          <SectionHead code="CEO" title="CEO View" sub={`${periodLabel} - all amounts shown in ₹ Lakhs`} />
-          <div className="kpis reference-kpis">
-            <Kpi title="Total Sales" value={money(totals.netSales)} meta={`${num(totals.salesLines.length)} sales lines`} tone="#1976d2" />
-            <Kpi title="Total Receipt" value={money(totals.receipts)} meta="Voucher-row debit convention" icon="money" tone="#2fd083" />
-            <Kpi title="Total Purchase" value={money(totals.netPurchases)} meta={`${num(totals.purchaseLines.length)} purchase lines`} icon="box" tone="#f14f64" />
-            <Kpi title="Total Payment" value={money(totals.payments)} meta="Voucher-row credit convention" icon="card" tone="#f6a343" />
-          </div>
-          <Card title="Sales Register Statistics" sub="" badge="">
-            <div className="stat-strip">
-              <div>
-                <span className="stat-icon trend" />
-                <b>{money(totals.grossSales - totals.salesReturns)}</b>
-                <p>Sales - Credit Note(Net)</p>
-              </div>
-              <div>
-                <span className="stat-icon cube" />
-                <b>{money(totals.grossPurchases - totals.purchaseReturns)}</b>
-                <p>Purchase - Debit Note(Net)</p>
-              </div>
-              <div>
-                <span className="stat-icon cost">₹</span>
-                <b>{money(Math.max(totals.netPurchases, 0))}</b>
-                <p>Cost</p>
-              </div>
-            </div>
-          </Card>
-          <div className="grid31">
-            <Card title="Sales vs Purchase" sub="Drag to pan after zooming" badge=""><LineChart series={monthlySeries.slice(0, 2)} months={MONTH_ORDER} labels={MONTH_LABELS} /></Card>
-            <Card title="Highlights" sub="" badge="">
-              <Highlights items={[
-                { label: "Last Sales on current period", value: `Sales Amount: ${money(totals.netSales / Math.max(totals.salesLines.length, 1))}` },
-                { label: "Last Receipt on current period", value: `Receipt Amount: ${money(totals.receipts / Math.max(filtered.ledgers.length, 1))}` },
-                { label: "Last Purchase on current period", value: `Purchase Amount: ${money(totals.netPurchases / Math.max(totals.purchaseLines.length, 1))}` },
-                { label: "Last Payment on current period", value: `Payment Amount: ${money(totals.payments / Math.max(filtered.ledgers.length, 1))}` },
-              ]} />
-            </Card>
-          </div>
-          <div className="grid3 reference-lower">
-            <Card title="Cash & Bank Summary" sub="" badge="">
-              <div className="cash-summary">
-                <p>Cash Balance</p>
-                <h3>{money(Math.max(totals.netCash, 0))} Dr</h3>
-                <p>Bank Balance</p>
-                <h3>{money(Math.abs(totals.netCash))} {totals.netCash >= 0 ? "Dr" : "Cr"}</h3>
-              </div>
-            </Card>
-            <Card title="Receivable vs Payable" sub="" badge="">
-              <DonutChart rows={[["Receivable", totals.netSales], ["Payable", totals.netPurchases]]} />
-            </Card>
-            <Card title="Ratio Analysis - Principal Groups" sub="" badge="">
-              <RatioList rows={[
-                ["Working Capital", money(totals.netCash)],
-                ["Sundry Debtors", money(totals.netSales)],
-                ["Sundry Creditors", money(totals.netPurchases)],
-                ["Sales Accounts", money(totals.grossSales)],
-                ["Purchase Accounts", money(totals.grossPurchases)],
-                ["Net Profit", money(totals.netSales - totals.netPurchases)],
-              ]} />
-            </Card>
-          </div>
+          {/* CEO View is rendered by CeoView.jsx — wired in DashboardApp via SheetContext */}
         </section>
       )}
 
@@ -662,10 +483,21 @@ function Dashboard({ data, filters }) {
   );
 }
 
-function DashboardApp({ authUser, onLogout, onUnauthorized }) {
-  const { data, error, loading, load, setData, setError } = useDashboardData(onUnauthorized);
+function DashboardApp({ onLogout, onUnauthorized }) {
+  const [sheetUrl, setSheetUrl] = useState(() => {
+    try { return localStorage.getItem("dl_sheet_url") || ""; } catch { return ""; }
+  });
+  const { data, error, loading, load, setData, setError } = useDashboardData(sheetUrl, onUnauthorized);
+  const [ceoFy, setCeoFy] = useState("");
+
+  const onConnected = (url, dashboard) => {
+    try { localStorage.setItem("dl_sheet_url", url); } catch { /* storage unavailable */ }
+    setSheetUrl(url);
+    if (dashboard) setData(dashboard);
+  };
   const [filters, setFilters] = useState({
     section: "executive",
+    fy: DEFAULT_FY,
     months: [...MONTH_ORDER],
     periodGranular: false,
     tx: "All",
@@ -676,6 +508,20 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
   });
   const [grossMode, setGrossMode] = useState(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const availableFys = useMemo(() => {
+    const fromData = data?.financialYears?.length ? data.financialYears : [];
+    return fromData.length ? fromData : DEFAULT_FYS;
+  }, [data]);
+  const selectedFy = availableFys.includes(filters.fy) ? filters.fy : availableFys[0] || DEFAULT_FY;
+  const currentMonthOrder = useMemo(() => fiscalYearMonths(selectedFy), [selectedFy]);
+  const currentMonthLabels = useMemo(() => monthLabels(currentMonthOrder), [currentMonthOrder]);
+  const currentPeriodMap = useMemo(() => periodMonths(currentMonthOrder), [currentMonthOrder]);
+
+  useEffect(() => {
+    if (filters.fy !== selectedFy) {
+      setFilters((current) => ({ ...current, fy: selectedFy, months: [...currentMonthOrder], periodGranular: false }));
+    }
+  }, [filters.fy, selectedFy, currentMonthOrder]);
 
   const filterOptions = useMemo(() => {
     if (!data) return { txs: [], parties: [], states: [], groups: [] };
@@ -690,7 +536,7 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
   const activeNav = NAV.find(([id]) => id === filters.section);
   const companyName = data?.company || "MLH GOBONGO PVT. LTD.";
   const refreshLabel = data?.generatedAt ? `Last refresh ${data.generatedAt}` : "Waiting for connected data";
-  const periodRange = data?.periodLabel || "FY 2025-26";
+  const periodRange = selectedFy;
 
   return (
     <div className={`app-shell ${mobileNavOpen ? "nav-open" : ""}`}>
@@ -729,7 +575,7 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
             <button className="icon-btn search-action" aria-label="Search" />
             <button className="icon-btn" aria-label="Notifications">!</button>
             <div className="user-chip">
-              <span>{authUser.email}</span>
+              <span>Signed in</span>
               <i aria-hidden="true" />
               <button type="button" className="logout-button" onClick={onLogout}>Log out</button>
             </div>
@@ -745,16 +591,40 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
               <div className="breadcrumbs">MIS / {activeNav?.[2] || "CEO View"}</div>
             </div>
             <div className="page-tools">
+              <DataSourceSettings currentUrl={sheetUrl} onConnected={onConnected} setError={setError} />
               <button className="export-btn"><span className="desktop-label">Export as PDF</span><span className="mobile-label">Export</span></button>
             </div>
           </div>
+          {!sheetUrl && (
+            <div className="error-box info-box">No Google Sheet connected. Open <b>Data Source</b> (top right) and paste your sheet URL, then press <b>Sync Now</b> to load the dashboard.</div>
+          )}
           <div className="control-row">
             <label className="searchbox">
               <span className="search-glyph" aria-hidden="true" />
               <input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Search reports, parties, items..." />
             </label>
             <ToggleSwitch checked={grossMode} onChange={setGrossMode} />
-            <PeriodBar months={filters.months || MONTH_ORDER} granular={filters.periodGranular || false} onChange={(next, gran) => setFilters((f) => ({ ...f, months: next, periodGranular: gran }))} />
+            <label className="fy-select">
+              <span>FY</span>
+              <select
+                value={selectedFy}
+                onChange={(event) => {
+                  const fy = event.target.value;
+                  const nextMonths = fiscalYearMonths(fy);
+                  setFilters((f) => ({ ...f, fy, months: nextMonths, periodGranular: false }));
+                }}
+              >
+                {availableFys.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
+              </select>
+            </label>
+            <PeriodBar
+              months={filters.months || currentMonthOrder}
+              granular={filters.periodGranular || false}
+              monthOrder={currentMonthOrder}
+              labels={currentMonthLabels}
+              periodMap={currentPeriodMap}
+              onChange={(next, gran) => setFilters((f) => ({ ...f, months: next, periodGranular: gran }))}
+            />
           </div>
 
           <details className="downloadbar advanced-filters">
@@ -764,14 +634,19 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
               <SelectFilter label="Party / Account" value={filters.party} values={filterOptions.parties} onChange={(value) => updateFilter("party", value)} />
               <SelectFilter label="State" value={filters.state} values={filterOptions.states} onChange={(value) => updateFilter("state", value)} />
               <SelectFilter label="Item Group" value={filters.itemGroup} values={filterOptions.groups} onChange={(value) => updateFilter("itemGroup", value)} />
-              {data && <UploadFilesPanel reload={load} setData={setData} setError={setError} />}
-              {data && <DataSourcePanel data={data} reload={load} setData={setData} setError={setError} />}
             </div>
           </details>
 
-          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && <div className="loading">Loading dashboard data...</div>}
-          {ANALYTICS_PAGES.has(filters.section) ? (
-            <PeriodContext.Provider value={filters.months || MONTH_ORDER}>
+          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && <div className="loading">Loading dashboard data...</div>}
+          {filters.section === "executive" ? (
+            <SheetContext.Provider value={sheetUrl}>
+              <ErrorBoundary resetKey="executive">
+                <CeoView fy={ceoFy} onFy={setCeoFy} />
+              </ErrorBoundary>
+            </SheetContext.Provider>
+          ) : ANALYTICS_PAGES.has(filters.section) ? (
+            <SheetContext.Provider value={sheetUrl}>
+            <PeriodContext.Provider value={{ fy: selectedFy, months: filters.months || currentMonthOrder }}>
               <ErrorBoundary resetKey={filters.section}>
                 {filters.section === "receivables" ? <CustomerReceivables /> :
                  filters.section === "payables" ? <VendorPayables /> :
@@ -784,8 +659,9 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
                  filters.section === "productforecast" ? <ProductForecast /> : null}
               </ErrorBoundary>
             </PeriodContext.Provider>
+            </SheetContext.Provider>
           ) : (
-            data && <Dashboard data={data} filters={filters} />
+            data && <Dashboard data={data} filters={{ ...filters, fy: selectedFy }} monthOrder={currentMonthOrder} labels={currentMonthLabels} periodMap={currentPeriodMap} />
           )}
         </main>
       </div>
@@ -794,25 +670,21 @@ function DashboardApp({ authUser, onLogout, onUnauthorized }) {
 }
 
 export default function App() {
-  const [authState, setAuthState] = useState({ status: "checking", user: null });
+  const [authState, setAuthState] = useState("checking"); // checking | authenticated | logged-out
 
-  const becomeLoggedOut = useCallback(() => setAuthState({ status: "logged-out", user: null }), []);
+  const becomeLoggedOut = useCallback(() => setAuthState("logged-out"), []);
 
   useEffect(() => {
     let active = true;
     getSession()
-      .then(({ user }) => {
-        if (active) setAuthState({ status: "authenticated", user });
-      })
-      .catch(() => {
-        if (active) becomeLoggedOut();
-      });
+      .then(() => { if (active) setAuthState("authenticated"); })
+      .catch(() => { if (active) becomeLoggedOut(); });
     return () => { active = false; };
   }, [becomeLoggedOut]);
 
-  async function handleLogin(email, password) {
-    const { user } = await login(email, password);
-    setAuthState({ status: "authenticated", user });
+  async function handleLogin(password) {
+    await login(password);
+    setAuthState("authenticated");
   }
 
   async function handleLogout() {
@@ -820,9 +692,9 @@ export default function App() {
     becomeLoggedOut();
   }
 
-  if (authState.status === "checking") {
+  if (authState === "checking") {
     return <main className="auth-checking"><div className="login-brand" aria-hidden="true">DL</div><span>Checking secure session...</span></main>;
   }
-  if (authState.status === "logged-out") return <LoginScreen onLogin={handleLogin} />;
-  return <DashboardApp authUser={authState.user} onLogout={handleLogout} onUnauthorized={becomeLoggedOut} />;
+  if (authState === "logged-out") return <LoginScreen onLogin={handleLogin} />;
+  return <DashboardApp onLogout={handleLogout} onUnauthorized={becomeLoggedOut} />;
 }
