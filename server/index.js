@@ -1,33 +1,21 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import multer from "multer";
-import {
-  createUploadedFileBatch,
-  getUserForAccessToken,
-  hasSupabaseConfig,
-  loadDashboardSnapshot,
-  refreshAuthSession,
-  saveDashboardSnapshot,
-  signInWithPassword,
-  signOutAccessToken,
-  updateUploadBatchStatus,
-} from "./supabase.js";
 import {
   ACCESS_COOKIE,
-  REFRESH_COOKIE,
+  authConfigured,
+  checkPassword,
   clearSessionCookies,
   createRequireAuth,
-  isAuthorizedEmail,
+  expectedToken,
   parseCookies,
   sessionCookie,
 } from "./auth.js";
-import { buildDashboardData, buildDashboardDataFromWorkbook, sourceSignature as nodeSourceSignature } from "./dashboardBuilder.js";
+import { buildDashboardDataFromWorkbook } from "./dashboardBuilder.js";
 import { buildAnalytics } from "./analyticsBuilder.js";
-import { fetchGoogleWorkbook, workbookSignature } from "./googleSheetsSource.js";
-import { normalizeSourceConfig, sourceIdentity } from "./sourceConfig.js";
+import { buildCeoOverview } from "./ceoBuilder.js";
+import { fetchGoogleWorkbook, workbookSignature, extractGoogleSheetId } from "./googleSheetsSource.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,25 +25,9 @@ try {
 } catch {
   // Cloud deployments provide environment variables directly.
 }
-const configPath = path.join(__dirname, "data-source.json");
-const cachePath = path.join(__dirname, "dashboard-cache.json");
-const defaultSourceDir = "C:\\Users\\hp\\Downloads\\DataLense\\csv";
+
 const isVercel = Boolean(process.env.VERCEL);
 const secureCookies = isVercel || process.env.NODE_ENV === "production";
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    files: 20,
-    fileSize: 25 * 1024 * 1024,
-  },
-});
-
-let cache = {
-  sourceKey: "",
-  signature: "",
-  data: null,
-  loadedAt: 0,
-};
 
 async function pathExists(target) {
   try {
@@ -66,349 +38,102 @@ async function pathExists(target) {
   }
 }
 
-async function readConfig() {
-  try {
-    const raw = await fs.readFile(configPath, "utf8");
-    const parsed = JSON.parse(raw);
-    return normalizeSourceConfig(parsed, defaultSourceDir);
-  } catch {
-    return normalizeSourceConfig({ sourceDir: defaultSourceDir }, defaultSourceDir);
+// ---------------------------------------------------------------------------
+// Direct-to-sheet data layer. Stateless: every request carries the sheet URL.
+// An in-memory cache (process-local, keyed by sheet id + content signature)
+// avoids re-parsing the workbook when only the period filter changes. No DB.
+// ---------------------------------------------------------------------------
+const sheetCache = new Map(); // sheetId -> { signature, data, loadedAt }
+
+async function fetchDashboard(sheetUrl, { force = false } = {}) {
+  const sheetId = extractGoogleSheetId(sheetUrl);
+  if (!sheetId) {
+    const error = new Error("Enter a valid Google Sheets URL or ID.");
+    error.status = 400;
+    throw error;
   }
+  const { workbook } = await fetchGoogleWorkbook(sheetId);
+  const signature = workbookSignature(workbook);
+  const cached = sheetCache.get(sheetId);
+  if (!force && cached && cached.signature === signature) {
+    return { ...cached.data, sourceType: "google-sheet", sourceSignature: signature, cacheStatus: "hit", loadedAt: cached.loadedAt };
+  }
+  const data = buildDashboardDataFromWorkbook(workbook);
+  const loadedAt = Date.now();
+  sheetCache.set(sheetId, { signature, data, loadedAt });
+  return { ...data, sourceType: "google-sheet", sourceSignature: signature, cacheStatus: force ? "fresh" : "miss", loadedAt };
 }
 
-async function writeConfig(config) {
-  await fs.mkdir(path.dirname(configPath), { recursive: true });
-  await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf8");
+function sheetUrlFrom(req) {
+  return String(req.query?.sheetUrl || req.get?.("x-sheet-url") || req.body?.sheetUrl || "").trim();
 }
 
-async function readDiskCache(sourceKey, signature) {
-  try {
-    const raw = await fs.readFile(cachePath, "utf8");
-    const parsed = JSON.parse(raw);
-    if (parsed.sourceKey !== sourceKey || parsed.signature !== signature || !parsed.data) {
-      return null;
-    }
-    return parsed;
-  } catch {
+function requireSheet(req, res) {
+  const sheetUrl = sheetUrlFrom(req);
+  if (!sheetUrl) {
+    res.status(400).json({ error: "No Google Sheet connected. Open Data Source settings and sync a sheet.", needsSource: true });
     return null;
   }
-}
-
-async function writeDiskCache(sourceKey, signature, data, loadedAt) {
-  await fs.writeFile(
-    cachePath,
-    JSON.stringify({ sourceKey, signature, loadedAt, data }),
-    "utf8",
-  );
-}
-
-async function sourceSignature(sourceDir) {
-  const entries = await fs.readdir(sourceDir, { withFileTypes: true });
-  const fileStats = [];
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    if (!/\.(csv|xlsx|xls)$/i.test(entry.name)) continue;
-    const fullPath = path.join(sourceDir, entry.name);
-    const stat = await fs.stat(fullPath);
-    fileStats.push(`${entry.name}:${stat.size}:${stat.mtimeMs}`);
-  }
-  return fileStats.sort().join("|");
-}
-
-function cleanUploadName(filename) {
-  return path.basename(String(filename || "").replace(/\\/g, "/"));
-}
-
-function isAllowedUpload(filename) {
-  return /\.(csv|xlsx|xls)$/i.test(filename);
-}
-
-function cloudDashboard(sourceDir = "Vercel cloud deployment") {
-  return {
-    company: "MLH GOBONGO PVT. LTD.",
-    sourceDir,
-    sourceSignature: "cloud-deployment",
-    cacheStatus: "cloud",
-    loadedAt: Date.now(),
-    cloudMode: true,
-    cloudMessage: hasSupabaseConfig()
-      ? "Supabase is configured, but no active dashboard snapshot was found. Run the Supabase upload script after creating the table."
-      : "This Vercel deployment cannot read CSV/XLSX files from your local Windows folder. Add Supabase environment variables and upload a dashboard snapshot for cloud data.",
-    itemFacts: [],
-    ledgerFacts: [],
-    sourceProfile: [],
-  };
-}
-
-async function loadDashboard({ force = false } = {}) {
-  const config = await readConfig();
-  if (isVercel && config.sourceType !== "google-sheet") {
-    const snapshot = await loadDashboardSnapshot();
-    return snapshot || cloudDashboard(hasSupabaseConfig() ? "Supabase dashboard snapshot" : "Vercel cloud deployment");
-  }
-
-  const sourceKey = sourceIdentity(config, defaultSourceDir);
-  let sourceLabel;
-  let signature;
-  let freshData;
-
-  if (config.sourceType === "google-sheet") {
-    const { workbook } = await fetchGoogleWorkbook(config.googleSheetId);
-    signature = workbookSignature(workbook);
-    sourceLabel = "Google Sheets workbook";
-    freshData = () => buildDashboardDataFromWorkbook(workbook);
-  } else {
-    sourceLabel = config.sourceDir;
-    if (!(await pathExists(config.sourceDir))) {
-      const error = new Error(`Data source folder does not exist: ${config.sourceDir}`);
-      error.status = 400;
-      throw error;
-    }
-    signature = await sourceSignature(config.sourceDir);
-    freshData = () => buildDashboardData(config.sourceDir);
-  }
-
-  if (!force && cache.data && cache.sourceKey === sourceKey && cache.signature === signature) {
-      return {
-        ...cache.data,
-        sourceDir: sourceLabel,
-        sourceType: config.sourceType,
-        sourceSignature: signature,
-        cacheStatus: "hit",
-        loadedAt: cache.loadedAt,
-      };
-  }
-
-  if (!force) {
-    const diskCache = await readDiskCache(sourceKey, signature);
-    if (diskCache) {
-      cache = {
-        sourceKey,
-        signature,
-        data: diskCache.data,
-        loadedAt: diskCache.loadedAt || Date.now(),
-      };
-      return {
-        ...diskCache.data,
-        sourceDir: sourceLabel,
-        sourceType: config.sourceType,
-        sourceSignature: signature,
-        cacheStatus: "disk-cache",
-        loadedAt: cache.loadedAt,
-      };
-    }
-  }
-
-  const data = await freshData();
-  const loadedAt = Date.now();
-  cache = {
-    sourceKey,
-    signature,
-    data,
-    loadedAt,
-  };
-  await writeDiskCache(sourceKey, signature, data, loadedAt);
-  return {
-    ...data,
-    sourceDir: sourceLabel,
-    sourceType: config.sourceType,
-    sourceSignature: signature,
-    cacheStatus: "refreshed",
-    loadedAt: cache.loadedAt,
-  };
+  return sheetUrl;
 }
 
 async function createApp() {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
 
-  const setSessionCookies = (response, session) => {
-    response.setHeader("Set-Cookie", [
-      sessionCookie(ACCESS_COOKIE, session.access_token, { secure: secureCookies, maxAge: session.expires_in || 3600 }),
-      sessionCookie(REFRESH_COOKIE, session.refresh_token, { secure: secureCookies, maxAge: 60 * 60 * 24 * 30 }),
-    ]);
-  };
-  const clearAuthCookies = (response) => response.setHeader("Set-Cookie", clearSessionCookies({ secure: secureCookies }));
-  const authUserResponse = (user) => ({ user: { id: user.id, email: user.email } });
-
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const email = String(req.body?.email || "").trim().toLowerCase();
-      const password = String(req.body?.password || "");
-      if (!email || !password) {
-        res.status(400).json({ error: "Enter your email and password." });
-        return;
-      }
-      const { user, session } = await signInWithPassword(email, password);
-      if (!isAuthorizedEmail(user.email)) {
-        await signOutAccessToken(session.access_token).catch(() => {});
-        clearAuthCookies(res);
-        res.status(401).json({ error: "This account is not authorized for this dashboard." });
-        return;
-      }
-      setSessionCookies(res, session);
-      res.json(authUserResponse(user));
-    } catch (error) {
-      const unavailable = error.message === "Supabase authentication is not configured.";
-      res.status(unavailable ? 503 : 401).json({
-        error: unavailable ? "Authentication service is not configured." : "Email or password is incorrect.",
-      });
+  // ---- Auth: shared-password gate ----
+  app.post("/api/auth/login", (req, res) => {
+    if (!authConfigured()) {
+      res.status(503).json({ error: "Authentication is not configured. Set DASHBOARD_PASSWORD." });
+      return;
     }
+    const inputPassword = String(req.body?.password || "");
+    if (!inputPassword) {
+      res.status(400).json({ error: "Enter the dashboard password." });
+      return;
+    }
+    if (!checkPassword(inputPassword)) {
+      res.status(401).json({ error: "Incorrect password." });
+      return;
+    }
+    res.setHeader("Set-Cookie", sessionCookie(ACCESS_COOKIE, expectedToken(), { secure: secureCookies, maxAge: 60 * 60 * 24 * 30 }));
+    res.json({ ok: true });
   });
 
-  app.get("/api/auth/session", async (req, res) => {
-    const cookies = parseCookies(req.headers.cookie);
-    try {
-      let user;
-      if (cookies[ACCESS_COOKIE]) {
-        user = await getUserForAccessToken(cookies[ACCESS_COOKIE]).catch(() => null);
-      }
-      if (user && isAuthorizedEmail(user.email)) {
-        res.json(authUserResponse(user));
-        return;
-      }
-      if (cookies[REFRESH_COOKIE]) {
-        const refreshed = await refreshAuthSession(cookies[REFRESH_COOKIE]);
-        if (!isAuthorizedEmail(refreshed.user.email)) throw new Error("UNAUTHORIZED_USER");
-        setSessionCookies(res, refreshed.session);
-        res.json(authUserResponse(refreshed.user));
-        return;
-      }
-    } catch {
-      // Invalid sessions are handled by the common unauthenticated response below.
+  app.get("/api/auth/session", (req, res) => {
+    const token = parseCookies(req.headers.cookie)[ACCESS_COOKIE];
+    if (token && token === expectedToken()) {
+      res.json({ ok: true });
+      return;
     }
-    clearAuthCookies(res);
+    res.setHeader("Set-Cookie", clearSessionCookies({ secure: secureCookies }));
     res.status(401).json({ error: "Authentication required." });
   });
 
-  app.post("/api/auth/logout", async (req, res) => {
-    const accessToken = parseCookies(req.headers.cookie)[ACCESS_COOKIE];
-    await signOutAccessToken(accessToken).catch(() => {});
-    clearAuthCookies(res);
+  app.post("/api/auth/logout", (_req, res) => {
+    res.setHeader("Set-Cookie", clearSessionCookies({ secure: secureCookies }));
     res.json({ signedOut: true });
   });
 
-  app.use("/api", createRequireAuth({ getUser: getUserForAccessToken, secure: secureCookies }));
+  // Everything below /api requires a valid session cookie.
+  app.use("/api", createRequireAuth({ secure: secureCookies }));
 
-  app.get("/api/source", async (_req, res, next) => {
+  // ---- Data: direct-to-sheet, stateless ----
+  app.post("/api/sync", async (req, res, next) => {
     try {
-      const config = await readConfig();
-      res.json({
-        ...config,
-        exists: config.sourceType === "google-sheet" || (!isVercel && await pathExists(config.sourceDir)),
-        cloudMode: isVercel,
-        supabaseConfigured: hasSupabaseConfig(),
-      });
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      res.json(await fetchDashboard(sheetUrl, { force: true }));
     } catch (error) {
       next(error);
     }
   });
 
-  app.post("/api/source", async (req, res, next) => {
+  app.get("/api/dashboard", async (req, res, next) => {
     try {
-      const config = normalizeSourceConfig(req.body, defaultSourceDir);
-      if (isVercel && config.sourceType === "local-folder") {
-        res.status(400).json({
-          error: "This cloud deployment cannot connect to a local Windows folder. Use the local app for folder sync or add cloud storage.",
-        });
-        return;
-      }
-      if (config.sourceType === "local-folder" && !config.sourceDir) {
-        res.status(400).json({ error: "Enter a folder path containing the CSV/XLSX source files." });
-        return;
-      }
-      if (config.sourceType === "local-folder" && !(await pathExists(config.sourceDir))) {
-        res.status(400).json({ error: `Folder not found: ${config.sourceDir}` });
-        return;
-      }
-      await writeConfig(config);
-      cache = { sourceKey: "", signature: "", data: null, loadedAt: 0 };
-      const data = await loadDashboard({ force: true });
-      res.json({ ...config, data });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post("/api/upload-dashboard", upload.array("files", 20), async (req, res, next) => {
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "datalence-upload-"));
-    try {
-      if (!hasSupabaseConfig()) {
-        res.status(400).json({
-          error: "Supabase is not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY before uploading files.",
-        });
-        return;
-      }
-
-      const files = req.files || [];
-      if (!files.length) {
-        res.status(400).json({ error: "Choose one or more CSV/XLSX files to upload." });
-        return;
-      }
-
-      const invalid = files.find((file) => !isAllowedUpload(file.originalname));
-      if (invalid) {
-        res.status(400).json({ error: `Unsupported file type: ${invalid.originalname}` });
-        return;
-      }
-
-      for (const file of files) {
-        const filename = cleanUploadName(file.originalname);
-        await fs.writeFile(path.join(tempDir, filename), file.buffer);
-      }
-
-      const { uploadBatchId } = await createUploadedFileBatch({
-        files,
-        status: "uploaded",
-        message: "Dashboard source files uploaded. Processing started.",
-      });
-
-      try {
-        const sourceSig = await nodeSourceSignature(tempDir);
-        const data = await buildDashboardData(tempDir);
-        const sourceDir = `Supabase upload batch ${uploadBatchId}`;
-        await saveDashboardSnapshot({
-          data,
-          sourceDir,
-          sourceSignature: sourceSig,
-          uploadBatchId,
-        });
-        await updateUploadBatchStatus({
-          uploadBatchId,
-          status: "processed",
-          message: "Dashboard files uploaded and parsed successfully.",
-        });
-        res.json({
-          ...data,
-          sourceDir,
-          sourceSignature: sourceSig,
-          cacheStatus: "supabase-uploaded",
-          supabaseMode: true,
-          uploadBatchId,
-        });
-      } catch (processingError) {
-        await updateUploadBatchStatus({
-          uploadBatchId,
-          status: "uploaded",
-          message: `Files are stored in Supabase, but processing failed: ${processingError.message}`,
-        });
-        res.status(202).json({
-          uploadBatchId,
-          uploaded: true,
-          processed: false,
-          message: `Files are stored in Supabase, but processing failed: ${processingError.message}`,
-        });
-      }
-    } catch (error) {
-      next(error);
-    } finally {
-      await fs.rm(tempDir, { recursive: true, force: true });
-    }
-  });
-
-  app.get("/api/dashboard", async (_req, res, next) => {
-    try {
-      res.json(await loadDashboard());
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      res.json(await fetchDashboard(sheetUrl));
     } catch (error) {
       next(error);
     }
@@ -416,46 +141,42 @@ async function createApp() {
 
   app.get("/api/analytics", async (req, res, next) => {
     try {
-      const dash = await loadDashboard();
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      const dash = await fetchDashboard(sheetUrl);
       const monthsParam = String(req.query.months || "").trim();
+      const fy = String(req.query.fy || "").trim();
       const months = monthsParam ? monthsParam.split(",").map((m) => m.trim()).filter(Boolean) : null;
-      res.json(buildAnalytics(dash, months ? { months } : {}));
+      res.json(buildAnalytics(dash, { ...(fy ? { fy } : {}), ...(months ? { months } : {}) }));
     } catch (error) {
       next(error);
     }
   });
 
-  app.get("/api/status", async (_req, res, next) => {
+  app.get("/api/ceo", async (req, res, next) => {
     try {
-      const config = await readConfig();
-      const key = sourceIdentity(config, defaultSourceDir);
-      const exists = config.sourceType === "google-sheet" || (!isVercel && await pathExists(config.sourceDir));
-      let activeSignature = "";
-      if (config.sourceType === "google-sheet") {
-        const { workbook } = await fetchGoogleWorkbook(config.googleSheetId);
-        activeSignature = workbookSignature(workbook);
-      } else if (exists) {
-        activeSignature = await sourceSignature(config.sourceDir);
-      }
-      res.json({
-        ...config,
-        exists,
-        cloudMode: isVercel,
-        supabaseConfigured: hasSupabaseConfig(),
-        sourceSignature: activeSignature,
-        loadedAt: cache.sourceKey === key ? cache.loadedAt : 0,
-      });
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      const dash = await fetchDashboard(sheetUrl);
+      const fy = String(req.query.fy || "").trim();
+      res.json(buildCeoOverview(dash, fy ? { fy } : {}));
     } catch (error) {
       next(error);
     }
   });
 
-  app.post("/api/refresh", async (_req, res, next) => {
+  app.post("/api/refresh", async (req, res, next) => {
     try {
-      res.json(await loadDashboard({ force: true }));
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      res.json(await fetchDashboard(sheetUrl, { force: true }));
     } catch (error) {
       next(error);
     }
+  });
+
+  app.get("/api/status", (_req, res) => {
+    res.json({ ok: true, cloudMode: isVercel, cachedSheets: sheetCache.size });
   });
 
   app.use((error, _req, res, _next) => {
@@ -469,11 +190,7 @@ async function createApp() {
     const useVite = process.env.DASHBOARD_DEV === "1" || !hasProductionBuild;
     if (useVite) {
       const { createServer } = await import("vite");
-      const vite = await createServer({
-        root: rootDir,
-        server: { middlewareMode: true },
-        appType: "spa",
-      });
+      const vite = await createServer({ root: rootDir, server: { middlewareMode: true }, appType: "spa" });
       app.use(vite.middlewares);
     } else {
       app.use(express.static(distDir));
