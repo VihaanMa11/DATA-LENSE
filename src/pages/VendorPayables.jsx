@@ -2,7 +2,8 @@ import React from "react";
 import { useAnalytics } from "../useAnalytics.js";
 import { SectionHead, Kpi, Card, Table, money } from "../components/ui.jsx";
 import { BarChart, LineChart } from "../components/InteractiveCharts.jsx";
-import { PageState, MONTH_LABELS, MONTH_ORDER } from "./pageKit.jsx";
+import { PageState, MONTH_LABELS as FALLBACK_MONTH_LABELS, MONTH_ORDER as FALLBACK_MONTH_ORDER } from "./pageKit.jsx";
+import { monthLabels } from "../fiscalYear.js";
 
 export function VendorPayables() {
   const { analytics, loading, error } = useAnalytics();
@@ -18,9 +19,13 @@ function Body({ a }) {
   const s = a.summary || {};
   const topVendors = vendors.slice(0, 12).map(v => [v.name, v.netPurchase]);
   const monthly = a.monthly || [];
+  const monthOrder = a.monthOrder?.length ? a.monthOrder : FALLBACK_MONTH_ORDER;
+  const labels = { ...FALLBACK_MONTH_LABELS, ...monthLabels(monthOrder) };
+  const MONTH_ORDER = monthOrder;
+  const MONTH_LABELS = labels;
   const series = [
-    { name: "Net Purchase", values: MONTH_ORDER.map(m => (monthly.find(x => x.month === m)?.purchase) || 0) },
-    { name: "Payments", values: MONTH_ORDER.map(m => (monthly.find(x => x.month === m)?.payments) || 0) },
+    { name: "Net Purchase", values: monthOrder.map(m => (monthly.find(x => x.month === m)?.purchase) || 0) },
+    { name: "Payments", values: monthOrder.map(m => (monthly.find(x => x.month === m)?.payments) || 0) },
   ];
   const efficiency = s.totalNetPurchase ? ((vendors.reduce((t, v) => t + v.payments, 0) / s.totalNetPurchase) * 100).toFixed(1) : "0.0";
 

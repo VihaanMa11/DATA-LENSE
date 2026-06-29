@@ -12,10 +12,30 @@
 //   itemMaster:  array of { name, group, mainUnit, openingStock, salePrice, purcPrice, mrp }
 
 const TODAY = new Date();
-const FY_ORDER = ["2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03"];
 
 const num = (v) => Number(v) || 0;
 const round1 = (v) => Math.round(v * 10) / 10;
+
+function fiscalYearMonths(fy) {
+  const match = String(fy || "").match(/FY\s*(\d{4})\s*-\s*(\d{2})/i);
+  if (!match) return [];
+  const startYear = Number(match[1]);
+  return [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3].map((month) => {
+    const year = month >= 4 ? startYear : startYear + 1;
+    return `${year}-${String(month).padStart(2, "0")}`;
+  });
+}
+
+function monthOrderFromFacts(itemFacts, ledgerFacts, options) {
+  if (Array.isArray(options.months) && options.months.length) return [...options.months];
+  const fyMonths = fiscalYearMonths(options.fy);
+  if (fyMonths.length) return fyMonths;
+  const firstFy = [...itemFacts, ...ledgerFacts].find((row) => row.fy)?.fy;
+  const firstFyMonths = fiscalYearMonths(firstFy);
+  if (firstFyMonths.length) return firstFyMonths;
+  const months = new Set([...itemFacts, ...ledgerFacts].map((row) => row.month).filter((month) => month && month !== "Undated"));
+  return [...months].sort();
+}
 
 function daysBetween(d1, d2) {
   return Math.floor((d2 - d1) / 86400000);
@@ -26,12 +46,18 @@ export function buildAnalytics(dashData, options = {}) {
   let ledgerFacts = Array.isArray(dashData?.ledgerFacts) ? dashData.ledgerFacts : [];
   const itemMaster = Array.isArray(dashData?.itemMaster) ? dashData.itemMaster : [];
 
+  if (options.fy) {
+    itemFacts = itemFacts.filter((row) => row.fy === options.fy);
+    ledgerFacts = ledgerFacts.filter((row) => row.fy === options.fy);
+  }
+
   // Optional period filter: restrict facts to the selected months before computing.
   if (Array.isArray(options.months) && options.months.length) {
     const monthSet = new Set(options.months);
     itemFacts = itemFacts.filter((row) => monthSet.has(row.month));
     ledgerFacts = ledgerFacts.filter((row) => monthSet.has(row.month));
   }
+  const monthOrder = monthOrderFromFacts(itemFacts, ledgerFacts, options);
 
   // ---------------------------------------------------------------- Customers
   const custMap = new Map();
@@ -215,7 +241,7 @@ export function buildAnalytics(dashData, options = {}) {
   const totalExpenses = expenses.reduce((s, e) => s + e.totalExpenses, 0);
 
   // ------------------------------------------------------- Monthly aggregates
-  const monthAgg = new Map(FY_ORDER.map(m => [m, { month: m, sales: 0, purchase: 0, receipts: 0, payments: 0 }]));
+  const monthAgg = new Map(monthOrder.map(m => [m, { month: m, sales: 0, purchase: 0, receipts: 0, payments: 0 }]));
   for (const r of itemFacts) {
     const row = monthAgg.get(r.month);
     if (!row) continue;
@@ -230,7 +256,7 @@ export function buildAnalytics(dashData, options = {}) {
     if (r.tx === "Receipt") row.receipts += num(r.businessAmount);
     else if (r.tx === "Payment") row.payments += num(r.businessAmount);
   }
-  const monthly = FY_ORDER.map((m, i) => {
+  const monthly = monthOrder.map((m, i) => {
     const r = monthAgg.get(m);
     return { month: m, x: i + 1, sales: Math.max(0, r.sales), purchase: Math.max(0, r.purchase), receipts: Math.max(0, r.receipts), payments: Math.max(0, r.payments) };
   });
@@ -287,6 +313,7 @@ export function buildAnalytics(dashData, options = {}) {
     expenses, expenseGroups,
     itemGroupSales, customerZones, customerStates, receivablesByZone,
     monthly, monthlyTrend, forecast, summary,
+    monthOrder,
     totalNetSales,
   };
 }

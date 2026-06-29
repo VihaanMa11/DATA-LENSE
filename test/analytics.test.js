@@ -5,16 +5,17 @@ import { buildAnalytics } from "../server/analyticsBuilder.js";
 // Mirrors the real dashboardBuilder output: flat itemFacts/ledgerFacts arrays.
 const MOCK_DASH = {
   itemFacts: [
-    { tx: "Sales", date: "2025-04-01", month: "2025-04", party: "Raj Shoes", accountGroup: "ZONE-1", state: "WB", station: "Salar", item: "Sandal A", itemGroup: "Sandals", qty: 10, amount: 5000, finalAmount: 7500, price: 500 },
-    { tx: "Sales", date: "2025-05-15", month: "2025-05", party: "Raj Shoes", accountGroup: "ZONE-1", state: "WB", station: "Salar", item: "Sandal A", itemGroup: "Sandals", qty: 5, amount: 2500, finalAmount: 0, price: 500 },
-    { tx: "Sales", date: "2025-04-10", month: "2025-04", party: "Patel Traders", accountGroup: "ZONE-2", state: "GJ", station: "Surat", item: "Boot B", itemGroup: "Boots", qty: 20, amount: 12000, finalAmount: 120000, price: 600 },
-    { tx: "Sales Return", date: "2025-04-05", month: "2025-04", party: "Raj Shoes", item: "Sandal A", itemGroup: "Sandals", qty: 1, amount: 500, finalAmount: 500 },
-    { tx: "Purchase", date: "2025-04-01", month: "2025-04", party: "Supplier X", item: "Sandal A", itemGroup: "Sandals", qty: 50, amount: 15000, finalAmount: 15000, price: 300 },
+    { tx: "Sales", fy: "FY 2025-26", date: "2025-04-01", month: "2025-04", party: "Raj Shoes", accountGroup: "ZONE-1", state: "WB", station: "Salar", item: "Sandal A", itemGroup: "Sandals", qty: 10, amount: 5000, finalAmount: 7500, price: 500 },
+    { tx: "Sales", fy: "FY 2025-26", date: "2025-05-15", month: "2025-05", party: "Raj Shoes", accountGroup: "ZONE-1", state: "WB", station: "Salar", item: "Sandal A", itemGroup: "Sandals", qty: 5, amount: 2500, finalAmount: 0, price: 500 },
+    { tx: "Sales", fy: "FY 2025-26", date: "2025-04-10", month: "2025-04", party: "Patel Traders", accountGroup: "ZONE-2", state: "GJ", station: "Surat", item: "Boot B", itemGroup: "Boots", qty: 20, amount: 12000, finalAmount: 120000, price: 600 },
+    { tx: "Sales Return", fy: "FY 2025-26", date: "2025-04-05", month: "2025-04", party: "Raj Shoes", item: "Sandal A", itemGroup: "Sandals", qty: 1, amount: 500, finalAmount: 500 },
+    { tx: "Purchase", fy: "FY 2025-26", date: "2025-04-01", month: "2025-04", party: "Supplier X", item: "Sandal A", itemGroup: "Sandals", qty: 50, amount: 15000, finalAmount: 15000, price: 300 },
+    { tx: "Sales", fy: "FY 2024-25", date: "2024-04-01", month: "2024-04", party: "Old FY Customer", item: "Boot B", itemGroup: "Boots", qty: 1, amount: 1000, finalAmount: 1000, price: 1000 },
   ],
   ledgerFacts: [
-    { tx: "Receipt", date: "2025-04-20", month: "2025-04", account: "Raj Shoes", accountGroup: "ZONE-1", debit: 0, credit: 4000, businessAmount: 4000 },
-    { tx: "Payment", date: "2025-04-25", month: "2025-04", account: "Office Rent", accountGroup: "Indirect Expenses", debit: 5000, credit: 0, businessAmount: 5000 },
-    { tx: "Payment", date: "2025-04-26", month: "2025-04", account: "Supplier X", accountGroup: "Sundry Creditors", debit: 8000, credit: 0, businessAmount: 8000 },
+    { tx: "Receipt", fy: "FY 2025-26", date: "2025-04-20", month: "2025-04", account: "Raj Shoes", accountGroup: "ZONE-1", debit: 0, credit: 4000, businessAmount: 4000 },
+    { tx: "Payment", fy: "FY 2025-26", date: "2025-04-25", month: "2025-04", account: "Office Rent", accountGroup: "Indirect Expenses", debit: 5000, credit: 0, businessAmount: 5000 },
+    { tx: "Payment", fy: "FY 2025-26", date: "2025-04-26", month: "2025-04", account: "Supplier X", accountGroup: "Sundry Creditors", debit: 8000, credit: 0, businessAmount: 8000 },
   ],
   masters: { items: 2, accounts: 3 },
 };
@@ -80,5 +81,12 @@ describe("buildAnalytics", () => {
     const a = buildAnalytics(MOCK_DASH);
     assert.equal(a.monthlyTrend.length, 12);
     assert.ok(a.forecast && typeof a.forecast.m1 === "number");
+  });
+
+  it("filters facts by financial year", () => {
+    const a = buildAnalytics(MOCK_DASH, { fy: "FY 2024-25" });
+    assert.equal(a.summary.totalNetSales, 1000);
+    assert.equal(a.monthOrder[0], "2024-04");
+    assert.equal(a.customers[0].name, "Old FY Customer");
   });
 });

@@ -27,8 +27,8 @@ function Body({ a }) {
       <SectionHead code="SM" title="Stock Movement" sub="Opening, inward, outward, closing and value — opening stock from item master" />
       <div className="kpis">
         <Kpi title="Closing Stock Value" value={money(s.closingStockValue)} meta="At avg purchase rate" tone="#1976d2" icon="box" />
-        <Kpi title="Total Inward" value={`${num(totalInward)} u`} meta="Purchases net of returns" tone="#2fd083" icon="money" />
-        <Kpi title="Total Outward" value={`${num(totalOutward)} u`} meta="Sales net of returns" tone="#f6a343" />
+        <Kpi title="Total Inward" value={`${num(totalInward)} units`} meta="Purchases net of returns" tone="#2fd083" icon="money" />
+        <Kpi title="Total Outward" value={`${num(totalOutward)} units`} meta="Sales net of returns" tone="#f6a343" />
         <Kpi title="Dead Stock Lines" value={dead.length} meta="In stock, no sales" tone="#f14f64" icon="card" />
       </div>
       <div className="grid2">

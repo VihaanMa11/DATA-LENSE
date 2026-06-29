@@ -6,7 +6,7 @@ export const GRID = "#e3e8f0";
 export const INK = "#5d6678";
 
 export function money(value) {
-  return `₹${((Number(value) || 0) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })}L`;
+  return `₹${((Number(value) || 0) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })} Lakh`;
 }
 
 // Compact axis labels: ₹k / ₹L / ₹Cr

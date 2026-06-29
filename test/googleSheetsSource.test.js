@@ -28,20 +28,28 @@ test("workbookSignature ignores export package metadata and changes with cell co
   const first = XLSX.utils.book_new();
   const equivalent = XLSX.utils.book_new();
   const changed = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(first, XLSX.utils.aoa_to_sheet([["Name", "Amount"], ["Sale", 10]]), "Sales25");
-  XLSX.utils.book_append_sheet(equivalent, XLSX.utils.aoa_to_sheet([["Name", "Amount"], ["Sale", 10]]), "Sales25");
-  XLSX.utils.book_append_sheet(changed, XLSX.utils.aoa_to_sheet([["Name", "Amount"], ["Sale", 11]]), "Sales25");
+  XLSX.utils.book_append_sheet(first, XLSX.utils.aoa_to_sheet([["Name", "Amount"], ["Sale", 10]]), "Sales");
+  XLSX.utils.book_append_sheet(equivalent, XLSX.utils.aoa_to_sheet([["Name", "Amount"], ["Sale", 10]]), "Sales");
+  XLSX.utils.book_append_sheet(changed, XLSX.utils.aoa_to_sheet([["Name", "Amount"], ["Sale", 11]]), "Sales");
   assert.equal(workbookSignature(first), workbookSignature(equivalent));
   assert.notEqual(workbookSignature(first), workbookSignature(changed));
 });
 
 test("validateGoogleWorkbook reports every missing required tab", () => {
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Name"], ["Example"]]), "Sales25");
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Name"], ["Example"]]), "Sales");
   assert.throws(
     () => validateGoogleWorkbook(workbook),
-    (error) => error.message.includes("CrNote25") && error.message.includes("accmasterxlsx"),
+    (error) => error.message.includes("CrNote") && error.message.includes("AccountMaster"),
   );
+});
+
+test("validateGoogleWorkbook accepts the new master template tabs", () => {
+  const workbook = XLSX.utils.book_new();
+  for (const tab of ["CrNote", "DrNote", "JournalRegister", "Receipt", "Payment", "PurchaseReturn", "SalesReturn", "Purchase", "Sales", "ItemMaster", "AccountMaster"]) {
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Financial Year", "Name"], ["FY 2025-26", "Example"]]), tab);
+  }
+  assert.equal(validateGoogleWorkbook(workbook), workbook);
 });
 
 test("workbookTable preserves headers and row field names from a named tab", () => {
@@ -49,9 +57,9 @@ test("workbookTable preserves headers and row field names from a named tab", () 
   XLSX.utils.book_append_sheet(
     workbook,
     XLSX.utils.aoa_to_sheet([["Report"], ["Bill Date", "Bill No.", "Amount"], ["01/04/2025", "S-1", "1250"]]),
-    "Sales25",
+    "Sales",
   );
-  const table = workbookTable(workbook, "Sales25");
+  const table = workbookTable(workbook, "Sales");
   assert.deepEqual(table.columns, ["Bill Date", "Bill No.", "Amount"]);
   assert.deepEqual(table.rows[0], { "Bill Date": "01/04/2025", "Bill No.": "S-1", Amount: "1250" });
 });

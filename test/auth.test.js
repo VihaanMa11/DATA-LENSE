@@ -2,19 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ACCESS_COOKIE,
-  REFRESH_COOKIE,
+  authConfigured,
+  checkPassword,
   clearSessionCookies,
   createRequireAuth,
-  isAuthorizedEmail,
+  expectedToken,
   parseCookies,
   sessionCookie,
 } from "../server/auth.js";
 
-test("isAuthorizedEmail accepts only the normalized approved account", () => {
-  assert.equal(isAuthorizedEmail(" TestW065@gmail.com "), true);
-  assert.equal(isAuthorizedEmail("another@example.com"), false);
-  assert.equal(isAuthorizedEmail(""), false);
-});
+process.env.DASHBOARD_PASSWORD = "secret-pass";
+process.env.SESSION_SECRET = "test-secret";
 
 function responseRecorder() {
   return {
@@ -27,46 +25,48 @@ function responseRecorder() {
   };
 }
 
-test("createRequireAuth rejects requests without an access cookie", async () => {
-  let lookupCalls = 0;
-  const middleware = createRequireAuth({
-    getUser: async () => { lookupCalls += 1; },
-    secure: false,
-  });
+test("authConfigured reflects whether DASHBOARD_PASSWORD is set", () => {
+  assert.equal(authConfigured(), true);
+});
+
+test("checkPassword accepts the exact password and rejects everything else", () => {
+  assert.equal(checkPassword("secret-pass"), true);
+  assert.equal(checkPassword("wrong"), false);
+  assert.equal(checkPassword(""), false);
+});
+
+test("expectedToken is deterministic and a 64-char hex digest", () => {
+  const token = expectedToken();
+  assert.equal(token, expectedToken());
+  assert.match(token, /^[a-f0-9]{64}$/);
+});
+
+test("createRequireAuth rejects requests without a session cookie", () => {
+  const middleware = createRequireAuth({ secure: false });
   const response = responseRecorder();
   let nextCalls = 0;
-  await middleware({ headers: {} }, response, () => { nextCalls += 1; });
+  middleware({ headers: {} }, response, () => { nextCalls += 1; });
   assert.equal(response.statusCode, 401);
   assert.equal(response.body.error, "Authentication required.");
-  assert.equal(lookupCalls, 0);
   assert.equal(nextCalls, 0);
 });
 
-test("createRequireAuth passes the approved Supabase user to the route", async () => {
-  const user = { id: "user-1", email: "testw065@gmail.com" };
-  const middleware = createRequireAuth({ getUser: async (token) => {
-    assert.equal(token, "access-token");
-    return user;
-  } });
-  const request = { headers: { cookie: `${ACCESS_COOKIE}=access-token` } };
+test("createRequireAuth passes when the cookie matches the expected token", () => {
+  const middleware = createRequireAuth({ secure: false });
+  const request = { headers: { cookie: `${ACCESS_COOKIE}=${expectedToken()}` } };
   const response = responseRecorder();
   let nextCalls = 0;
-  await middleware(request, response, () => { nextCalls += 1; });
+  middleware(request, response, () => { nextCalls += 1; });
   assert.equal(nextCalls, 1);
-  assert.equal(request.authUser, user);
 });
 
-test("createRequireAuth rejects unauthorized Supabase users and clears cookies", async () => {
-  const middleware = createRequireAuth({
-    getUser: async () => ({ id: "user-2", email: "another@example.com" }),
-    secure: true,
-  });
+test("createRequireAuth rejects a wrong token and clears the cookie", () => {
+  const middleware = createRequireAuth({ secure: true });
   const response = responseRecorder();
-  await middleware({ headers: { cookie: `${ACCESS_COOKIE}=access-token` } }, response, () => {});
+  middleware({ headers: { cookie: `${ACCESS_COOKIE}=wrong-token` } }, response, () => {});
   assert.equal(response.statusCode, 401);
-  assert.equal(response.body.error, "This account is not authorized for this dashboard.");
-  assert.equal(response.headers["Set-Cookie"].length, 2);
-  response.headers["Set-Cookie"].forEach((cookie) => assert.match(cookie, /Secure/));
+  assert.equal(response.headers["Set-Cookie"].length, 1);
+  assert.match(response.headers["Set-Cookie"][0], /Secure/);
 });
 
 test("parseCookies decodes cookie values and ignores malformed pairs", () => {
@@ -87,13 +87,10 @@ test("sessionCookie serializes an HTTP-only same-site production cookie", () => 
   assert.match(cookie, /Max-Age=3600/);
 });
 
-test("clearSessionCookies expires both authentication cookies", () => {
+test("clearSessionCookies expires the access cookie", () => {
   const cookies = clearSessionCookies({ secure: false });
-  assert.equal(cookies.length, 2);
+  assert.equal(cookies.length, 1);
   assert.match(cookies[0], new RegExp(`^${ACCESS_COOKIE}=`));
-  assert.match(cookies[1], new RegExp(`^${REFRESH_COOKIE}=`));
-  cookies.forEach((cookie) => {
-    assert.match(cookie, /Max-Age=0/);
-    assert.match(cookie, /HttpOnly/);
-  });
+  assert.match(cookies[0], /Max-Age=0/);
+  assert.match(cookies[0], /HttpOnly/);
 });

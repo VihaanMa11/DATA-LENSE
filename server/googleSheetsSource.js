@@ -2,18 +2,32 @@ import { createHash } from "node:crypto";
 import XLSX from "xlsx";
 
 export const REQUIRED_GOOGLE_TABS = [
-  "CrNote25",
-  "DrNote25",
-  "JournalRegister25",
-  "receipt25",
-  "payment25",
-  "PurchaseReturn25",
-  "SalesReturn25",
-  "Purchase25",
-  "Sales25",
-  "Itemmaster",
-  "accmasterxlsx",
+  "CrNote",
+  "DrNote",
+  "JournalRegister",
+  "Receipt",
+  "Payment",
+  "PurchaseReturn",
+  "SalesReturn",
+  "Purchase",
+  "Sales",
+  "ItemMaster",
+  "AccountMaster",
 ];
+
+export const GOOGLE_TAB_ALIASES = {
+  CrNote: ["CrNote", "CrNote25"],
+  DrNote: ["DrNote", "DrNote25"],
+  JournalRegister: ["JournalRegister", "JournalRegister25"],
+  Receipt: ["Receipt", "receipt25"],
+  Payment: ["Payment", "payment25"],
+  PurchaseReturn: ["PurchaseReturn", "PurchaseReturn25"],
+  SalesReturn: ["SalesReturn", "SalesReturn25"],
+  Purchase: ["Purchase", "Purchase25"],
+  Sales: ["Sales", "Sales25"],
+  ItemMaster: ["ItemMaster", "Itemmaster"],
+  AccountMaster: ["AccountMaster", "accmasterxlsx"],
+};
 
 const SHEET_ID_PATTERN = /^[a-zA-Z0-9_-]{20,}$/;
 
@@ -71,17 +85,33 @@ function rowsToObjects(rows, headerIndex) {
   return { rows: objects, columns };
 }
 
+export function resolveGoogleTabName(workbook, tabName) {
+  const aliases = GOOGLE_TAB_ALIASES[tabName] || [tabName];
+  const normalized = new Map((workbook?.SheetNames || []).map((name) => [name.toLowerCase(), name]));
+  for (const alias of aliases) {
+    const actual = normalized.get(alias.toLowerCase());
+    if (actual) return actual;
+  }
+  return "";
+}
+
 function requiredSheet(workbook, tabName) {
-  const actualName = workbook.SheetNames.find((name) => name.toLowerCase() === tabName.toLowerCase());
+  const actualName = resolveGoogleTabName(workbook, tabName);
   if (!actualName) throw new Error(`Required Google Sheets tab is missing: ${tabName}`);
   return workbook.Sheets[actualName];
 }
 
 export function validateGoogleWorkbook(workbook) {
-  const names = new Set((workbook?.SheetNames || []).map((name) => name.toLowerCase()));
-  const missing = REQUIRED_GOOGLE_TABS.filter((name) => !names.has(name.toLowerCase()));
+  const missing = REQUIRED_GOOGLE_TABS.filter((name) => !resolveGoogleTabName(workbook, name));
   if (missing.length) throw new Error(`Required Google Sheets tabs are missing: ${missing.join(", ")}`);
   return workbook;
+}
+
+export function detectGoogleWorkbookFormat(workbook) {
+  const hasNewTabs = REQUIRED_GOOGLE_TABS.every((name) => (workbook?.SheetNames || []).some((sheetName) => sheetName.toLowerCase() === name.toLowerCase()));
+  if (hasNewTabs) return "fy-master";
+  validateGoogleWorkbook(workbook);
+  return "legacy-single-fy";
 }
 
 export function workbookTable(workbook, tabName) {

@@ -26,10 +26,10 @@ export function getSession() {
   return authRequest("/api/auth/session");
 }
 
-export function login(email, password) {
+export function login(password) {
   return authRequest("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ password }),
   });
 }
 

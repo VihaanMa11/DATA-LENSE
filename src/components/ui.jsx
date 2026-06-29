@@ -22,7 +22,7 @@ const CloseIcon = () => (
 );
 
 export function money(value) {
-  return `₹${((Number(value) || 0) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })}L`;
+  return `₹${((Number(value) || 0) / 100000).toLocaleString("en-IN", { maximumFractionDigits: 2 })} Lakh`;
 }
 
 export function num(value) {

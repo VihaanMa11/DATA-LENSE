@@ -3,6 +3,7 @@ import { useAnalytics } from "../useAnalytics.js";
 import { SectionHead, Kpi, Card, Table, money } from "../components/ui.jsx";
 import { LineChart } from "../components/InteractiveCharts.jsx";
 import { PageState, MONTH_LABELS, MONTH_ORDER } from "./pageKit.jsx";
+import { monthLabels } from "../fiscalYear.js";
 
 export function SalesForecast() {
   const { analytics, loading, error } = useAnalytics();
@@ -16,19 +17,21 @@ export function SalesForecast() {
 function Body({ a }) {
   const forecast = a.forecast || { m1: 0, m2: 0, m3: 0, slope: 0 };
   const monthly = a.monthly || [];
-  const actuals = MONTH_ORDER.map(m => (monthly.find(x => x.month === m)?.sales) || 0);
+  const monthOrder = a.monthOrder?.length ? a.monthOrder : MONTH_ORDER;
+  const baseLabels = monthLabels(monthOrder);
+  const actuals = monthOrder.map(m => (monthly.find(x => x.month === m)?.sales) || 0);
   const lastIdx = actuals.reduce((acc, v, i) => (v > 0 ? i : acc), -1);
 
   // Extend the axis with 3 forecast months.
-  const labels = { ...MONTH_LABELS, F1: "+1", F2: "+2", F3: "+3" };
-  const months = [...MONTH_ORDER, "F1", "F2", "F3"];
+  const labels = { ...MONTH_LABELS, ...baseLabels, F1: "+1", F2: "+2", F3: "+3" };
+  const months = [...monthOrder, "F1", "F2", "F3"];
 
   const forecastSeries = months.map(() => 0);
   if (lastIdx >= 0) {
     forecastSeries[lastIdx] = actuals[lastIdx]; // connect line to last actual
-    forecastSeries[MONTH_ORDER.length] = forecast.m1;
-    forecastSeries[MONTH_ORDER.length + 1] = forecast.m2;
-    forecastSeries[MONTH_ORDER.length + 2] = forecast.m3;
+    forecastSeries[monthOrder.length] = forecast.m1;
+    forecastSeries[monthOrder.length + 1] = forecast.m2;
+    forecastSeries[monthOrder.length + 2] = forecast.m3;
   }
   const series = [
     { name: "Actual", values: [...actuals, 0, 0, 0] },
@@ -53,9 +56,9 @@ function Body({ a }) {
         <Table
           headers={["#", "Month", "Net Sales", "Type"]}
           rows={[
-            ...MONTH_ORDER.filter((m, i) => actuals[i] > 0).map(m => {
-              const idx = MONTH_ORDER.indexOf(m);
-              return [MONTH_LABELS[m], <span className="money">{money(actuals[idx])}</span>, "Actual"];
+            ...monthOrder.filter((m, i) => actuals[i] > 0).map(m => {
+              const idx = monthOrder.indexOf(m);
+              return [labels[m], <span className="money">{money(actuals[idx])}</span>, "Actual"];
             }),
             [<b>Next Month</b>, <span className="money">{money(forecast.m1)}</span>, <span style={{ color: "#f6a343", fontWeight: 600 }}>Forecast</span>],
             [<b>Month +2</b>, <span className="money">{money(forecast.m2)}</span>, <span style={{ color: "#f6a343", fontWeight: 600 }}>Forecast</span>],

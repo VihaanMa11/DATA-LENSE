@@ -1,9 +1,6 @@
 import React, { useState } from "react";
 
-const APPROVED_EMAIL = "testw065@gmail.com";
-
 export function LoginScreen({ onLogin }) {
-  const [email, setEmail] = useState(APPROVED_EMAIL);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -14,7 +11,7 @@ export function LoginScreen({ onLogin }) {
     setError("");
     setSubmitting(true);
     try {
-      await onLogin(email, password);
+      await onLogin(password);
     } catch (loginError) {
       setError(loginError.message);
     } finally {
@@ -26,14 +23,10 @@ export function LoginScreen({ onLogin }) {
     <main className="login-page">
       <section className="login-panel" aria-labelledby="login-title">
         <div className="login-brand" aria-hidden="true">DL</div>
-        <div className="login-product">DATA LENSE MLH</div>
+        <div className="login-product">DATA LENSE</div>
         <h1 id="login-title">Sign in to your dashboard</h1>
-        <p>Use the authorized account to access live MIS reports and connected data.</p>
+        <p>Enter the dashboard password to access live MIS reports from your connected Google Sheet.</p>
         <form onSubmit={submit}>
-          <label>
-            <span>Email address</span>
-            <input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          </label>
           <label>
             <span>Password</span>
             <div className="password-field">
@@ -42,7 +35,7 @@ export function LoginScreen({ onLogin }) {
             </div>
           </label>
           {error ? <div className="login-error" role="alert">{error}</div> : null}
-          <button className="login-submit" type="submit" disabled={submitting || !email.trim() || !password}>
+          <button className="login-submit" type="submit" disabled={submitting || !password}>
             {submitting ? "Signing in..." : "Sign in"}
           </button>
         </form>

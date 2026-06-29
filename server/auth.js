@@ -1,9 +1,30 @@
-export const ACCESS_COOKIE = "dl_access_token";
-export const REFRESH_COOKIE = "dl_refresh_token";
-export const AUTHORIZED_EMAIL = String(process.env.AUTHORIZED_EMAIL || "testw065@gmail.com").trim().toLowerCase();
+import crypto from "node:crypto";
 
-export function isAuthorizedEmail(email) {
-  return String(email || "").trim().toLowerCase() === AUTHORIZED_EMAIL;
+// Shared-password gate. No database, no user accounts — one password (DASHBOARD_PASSWORD)
+// unlocks the dashboard. A successful login sets an HMAC session cookie that the
+// middleware validates statelessly on every /api request.
+
+export const ACCESS_COOKIE = "dl_access_token";
+
+const password = () => String(process.env.DASHBOARD_PASSWORD || "");
+const secret = () => String(process.env.SESSION_SECRET || process.env.DASHBOARD_PASSWORD || "datalens-dev-secret");
+
+export function authConfigured() {
+  return Boolean(password());
+}
+
+export function checkPassword(input) {
+  const expected = password();
+  if (!expected) return false;
+  const a = Buffer.from(String(input));
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// Deterministic session token derived from the secret — same value every time,
+// so the middleware can verify it without storing any session state.
+export function expectedToken() {
+  return crypto.createHmac("sha256", secret()).update("datalens-session-v1").digest("hex");
 }
 
 export function parseCookies(header = "") {
@@ -36,28 +57,17 @@ export function sessionCookie(name, value, { secure = false, maxAge } = {}) {
 }
 
 export function clearSessionCookies({ secure = false } = {}) {
-  return [ACCESS_COOKIE, REFRESH_COOKIE].map((name) => sessionCookie(name, "", { secure, maxAge: 0 }));
+  return [sessionCookie(ACCESS_COOKIE, "", { secure, maxAge: 0 })];
 }
 
-export function createRequireAuth({ getUser, secure = false }) {
-  return async function requireAuth(request, response, next) {
-    const accessToken = parseCookies(request.headers.cookie)[ACCESS_COOKIE];
-    if (!accessToken) {
-      response.status(401).json({ error: "Authentication required." });
+export function createRequireAuth({ secure = false } = {}) {
+  return function requireAuth(request, response, next) {
+    const token = parseCookies(request.headers.cookie)[ACCESS_COOKIE];
+    if (token && token === expectedToken()) {
+      next();
       return;
     }
-    try {
-      const user = await getUser(accessToken);
-      if (!isAuthorizedEmail(user?.email)) {
-        response.setHeader("Set-Cookie", clearSessionCookies({ secure }));
-        response.status(401).json({ error: "This account is not authorized for this dashboard." });
-        return;
-      }
-      request.authUser = user;
-      next();
-    } catch {
-      response.setHeader("Set-Cookie", clearSessionCookies({ secure }));
-      response.status(401).json({ error: "Authentication required." });
-    }
+    response.setHeader("Set-Cookie", clearSessionCookies({ secure }));
+    response.status(401).json({ error: "Authentication required." });
   };
 }

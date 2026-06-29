@@ -2,7 +2,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import XLSX from "xlsx";
-import { validateGoogleWorkbook } from "./googleSheetsSource.js";
+import { resolveGoogleTabName, validateGoogleWorkbook } from "./googleSheetsSource.js";
 
 const ITEM_FACT_FILES = {
   Sales: "Sales25.csv",
@@ -20,6 +20,19 @@ const LEDGER_FILES = {
 };
 
 const MASTER_FILES = ["Itemmaster.xlsx", "accmasterxlsx.xlsx"];
+const WORKBOOK_TAB_BY_FILE = {
+  "CrNote25.csv": "CrNote",
+  "DrNote25.csv": "DrNote",
+  "JournalRegister25.csv": "JournalRegister",
+  "receipt25.csv": "Receipt",
+  "payment25.csv": "Payment",
+  "PurchaseReturn25.csv": "PurchaseReturn",
+  "SalesReturn25.csv": "SalesReturn",
+  "Purchase25.csv": "Purchase",
+  "Sales25.csv": "Sales",
+  "Itemmaster.xlsx": "ItemMaster",
+  "accmasterxlsx.xlsx": "AccountMaster",
+};
 
 function normalizeName(value) {
   return String(value || "").trim().toLowerCase();
@@ -100,8 +113,9 @@ function readCsvTable(filePath) {
 
 function cleanMaster(filePath) {
   const rows = workbookRows(filePath);
-  const headers = (rows[1] || rows[0] || []).map((header) => String(header || "").trim());
-  return rows.slice(2)
+  const headerIndex = findHeader(rows);
+  const headers = (rows[headerIndex] || []).map((header) => String(header || "").trim());
+  return rows.slice(headerIndex + 1)
     .filter((row) => row.some((value) => String(value || "").trim() !== ""))
     .map((row) => {
       const obj = {};
@@ -150,6 +164,23 @@ function monthKey(date) {
   return date.slice(0, 7) || "Undated";
 }
 
+function normalizeFy(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/FY\s*(\d{4})\s*-\s*(\d{2})/i);
+  if (match) return `FY ${match[1]}-${match[2]}`;
+  return text;
+}
+
+function inferFyFromDate(date) {
+  if (!date || date === "Undated") return "";
+  const [yearText, monthText] = date.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  if (!year || !month) return "";
+  const startYear = month >= 4 ? year : year - 1;
+  return `FY ${startYear}-${String(startYear + 1).slice(-2)}`;
+}
+
 function shortItemFamily(name) {
   const cleaned = String(name || "").trim().replace(/\s+/g, " ").replace(/\s*MRP[- ]?\d+.*$/i, "");
   return cleaned ? cleaned.slice(0, 44) : "Unmapped";
@@ -162,6 +193,23 @@ function mapByName(rows) {
     if (name) map.set(name, row);
   }
   return map;
+}
+
+function dimensionLookup(rows) {
+  const byName = new Map();
+  const byFyName = new Map();
+  for (const row of rows) {
+    const name = cleanText(row.Name, "");
+    if (!name) continue;
+    const fy = normalizeFy(row["Financial Year"]);
+    byName.set(name, row);
+    if (fy) byFyName.set(`${fy}||${name}`, row);
+  }
+  return {
+    get(name, fy = "") {
+      return byFyName.get(`${fy}||${name}`) || byName.get(name) || {};
+    },
+  };
 }
 
 function isTotalRow(row) {
@@ -180,6 +228,10 @@ function forwardFill(rows, columns) {
     }
     return next;
   });
+}
+
+function presentColumns(rows, columns) {
+  return columns.filter((column) => rows.some((row) => Object.prototype.hasOwnProperty.call(row, column)));
 }
 
 export async function sourceSignature(sourceDir) {
@@ -212,8 +264,8 @@ export function buildDashboardDataFromWorkbook(workbook) {
   const files = new Map();
   const expected = [...Object.values(ITEM_FACT_FILES), ...Object.values(LEDGER_FILES), ...MASTER_FILES];
   for (const filename of expected) {
-    const tabName = filename.replace(/\.(csv|xlsx|xls)$/i, "");
-    const actualName = workbook.SheetNames.find((name) => normalizeName(name) === normalizeName(tabName));
+    const tabName = WORKBOOK_TAB_BY_FILE[filename] || filename.replace(/\.(csv|xlsx|xls)$/i, "");
+    const actualName = resolveGoogleTabName(workbook, tabName);
     if (!actualName) throw new Error(`Required Google Sheets tab is missing: ${tabName}`);
     files.set(normalizeName(filename), workbook.Sheets[actualName]);
   }
@@ -224,8 +276,8 @@ function buildDashboardFromSources(files, sourceType) {
 
   const items = cleanMaster(requiredPath(files, "Itemmaster.xlsx"));
   const accounts = cleanMaster(requiredPath(files, "accmasterxlsx.xlsx"));
-  const itemMap = mapByName(items);
-  const accountMap = mapByName(accounts);
+  const itemMap = dimensionLookup(items);
+  const accountMap = dimensionLookup(accounts);
   const itemFacts = [];
   const ledgerFacts = [];
   const sourceProfile = [];
@@ -233,17 +285,34 @@ function buildDashboardFromSources(files, sourceType) {
   for (const [txType, filename] of Object.entries(ITEM_FACT_FILES)) {
     const table = readCsvTable(requiredPath(files, filename));
     let rows = table.rows.filter((row) => !isTotalRow(row));
-    rows = forwardFill(rows, ["Vch. Series", "Bill Date", "Bill No.", "Party Name", "Final Amt", "Transport", "Distance"]);
+    rows = forwardFill(rows, presentColumns(rows, [
+      "Financial Year",
+      "Vch. Series",
+      "Bill Date",
+      "Bill No.",
+      "Party Name",
+      "Final Amt",
+      "Amount Grand Total",
+      "Transport",
+      "Station",
+      "Salesman Name",
+      "Distance",
+    ]));
 
     for (const row of rows) {
       const itemName = cleanText(row["Item Name"]);
       const partyName = cleanText(row["Party Name"]);
-      const itemDim = itemMap.get(itemName) || {};
-      const accountDim = accountMap.get(partyName) || {};
       const date = isoDate(row["Bill Date"]);
+      const fy = normalizeFy(row["Financial Year"]) || inferFyFromDate(date);
+      const itemDim = itemMap.get(itemName, fy);
+      const accountDim = accountMap.get(partyName, fy);
       const isHeader = Boolean(row["Bill No. Source"]);
+      const finalAmount = row["Amount Grand Total"] !== undefined && row["Amount Grand Total"] !== ""
+        ? row["Amount Grand Total"]
+        : row["Final Amt"];
       itemFacts.push({
         tx: txType,
+        fy,
         date,
         month: monthKey(date),
         voucher: cleanText(row["Bill No."], "No Voucher"),
@@ -259,11 +328,12 @@ function buildDashboardFromSources(files, sourceType) {
         altUnit: cleanText(itemDim["Alt. Unit"]),
         transport: cleanText(row.Transport, "Unspecified"),
         distance: asNumber(row.Distance),
+        salesman: cleanText(row["Salesman Name"], "Unassigned"),
         price: asNumber(row.Price),
         qty: asNumber(row["Main Qt"]),
         altQty: asNumber(row["Billed Quantity Alt"]),
         amount: asNumber(row.Amount),
-        finalAmount: isHeader ? asNumber(row["Final Amt"]) : 0,
+        finalAmount: isHeader ? asNumber(finalAmount) : 0,
         isHeader,
       });
     }
@@ -280,12 +350,13 @@ function buildDashboardFromSources(files, sourceType) {
   for (const [txType, filename] of Object.entries(LEDGER_FILES)) {
     const table = readCsvTable(requiredPath(files, filename));
     let rows = table.rows.filter((row) => !isTotalRow(row));
-    rows = forwardFill(rows, ["Bill Date", "Bill No."]);
+    rows = forwardFill(rows, presentColumns(rows, ["Financial Year", "Bill Date", "Bill No."]));
 
     for (const row of rows) {
       const accountName = cleanText(row["Account Name"]);
-      const accountDim = accountMap.get(accountName) || {};
       const date = isoDate(row["Bill Date"]);
+      const fy = normalizeFy(row["Financial Year"]) || inferFyFromDate(date);
+      const accountDim = accountMap.get(accountName, fy);
       const isHeader = Boolean(row["Bill Date Source"]);
       const debit = asNumber(row["Debit Amount"]);
       const credit = asNumber(row["Credit Amount"]);
@@ -296,6 +367,7 @@ function buildDashboardFromSources(files, sourceType) {
       else businessAmount = Math.max(debit, credit);
       ledgerFacts.push({
         tx: txType,
+        fy,
         date,
         month: monthKey(date),
         voucher: cleanText(row["Bill No."], "No Voucher"),
@@ -322,7 +394,8 @@ function buildDashboardFromSources(files, sourceType) {
   return {
     generatedAt: new Date().toISOString().replace("T", " ").slice(0, 19),
     company: "MLH GOBONGO PVT. LTD.",
-    periodLabel: "FY 2025-26",
+    periodLabel: [...new Set([...itemFacts, ...ledgerFacts].map((row) => row.fy).filter(Boolean))].join(", ") || "FY 2025-26",
+    financialYears: [...new Set([...itemFacts, ...ledgerFacts].map((row) => row.fy).filter(Boolean))].sort(),
     itemFacts,
     ledgerFacts,
     sourceProfile,
