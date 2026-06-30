@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from "react";
+import { readJsonResponse } from "./apiClient.js";
 import { SheetContext } from "./sheetContext.js";
 
 export function usePartyAnalysis(fy) {
@@ -15,10 +16,7 @@ export function usePartyAnalysis(fy) {
     const params = new URLSearchParams({ sheetUrl });
     if (fy) params.set("fy", fy);
     fetch(`/api/party?${params.toString()}`, { credentials: "include" })
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
+      .then(readJsonResponse)
       .then(data => { if (!cancelled) setParty(data); })
       .catch(e => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });

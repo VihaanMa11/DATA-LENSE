@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from "react";
+import { readJsonResponse } from "./apiClient.js";
 import { PeriodContext } from "./periodContext.js";
 import { SheetContext } from "./sheetContext.js";
 
@@ -25,10 +26,7 @@ export function useAnalytics() {
     if (fy) params.set("fy", fy);
     if (monthsKey) params.set("months", monthsKey);
     fetch(`/api/analytics?${params.toString()}`, { credentials: "include" })
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
+      .then(readJsonResponse)
       .then(data => { if (!cancelled) setAnalytics(data); })
       .catch(e => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });

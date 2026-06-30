@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from "react";
+import { readJsonResponse } from "./apiClient.js";
 import { SheetContext } from "./sheetContext.js";
 
 export function useCustomerPareto(fy) {
@@ -15,10 +16,7 @@ export function useCustomerPareto(fy) {
     const params = new URLSearchParams({ sheetUrl });
     if (fy) params.set("fy", fy);
     fetch(`/api/customer-pareto?${params.toString()}`, { credentials: "include" })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
+      .then(readJsonResponse)
       .then((data) => { if (!cancelled) setPareto(data); })
       .catch((e) => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
