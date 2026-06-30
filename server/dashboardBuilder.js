@@ -414,5 +414,13 @@ function buildDashboardFromSources(files, sourceType) {
       purcPrice: asNumber(row["Purc. Price"]),
       mrp: asNumber(row.MRP),
     })),
+    accountMaster: accounts.map((row) => ({
+      name: cleanText(row.Name),
+      group: cleanText(row["Group Name"]),
+      openingDr: asNumber(row["Opening Bal. (Dr)"]),
+      openingCr: asNumber(row["Opening Bal. (Cr)"]),
+      state: cleanText(row.State),
+      station: cleanText(row.Station),
+    })),
   };
 }
