@@ -3308,3 +3308,147 @@ tbody tr:hover td { background: var(--blue-soft); }
   border-radius: 20px;
   white-space: nowrap;
 }
+
+/* ============================================================
+   RECEIVABLES VIEW
+   ============================================================ */
+
+.rec-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ---- KPI grid (6 cards) ---- */
+.rec-kpi-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 900px) {
+  .rec-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .rec-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Data note banner (amber) ---- */
+.rec-data-note-banner {
+  background: #fdf2e3;
+  border: 1px solid #d97706;
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+}
+
+.rec-data-note-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 8px;
+}
+
+.rec-data-note-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rec-data-note-list li {
+  font-size: 12px;
+  color: #78350f;
+  line-height: 1.5;
+}
+
+/* ---- Placeholder card ---- */
+.rec-placeholder {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px;
+  background: var(--surface-soft);
+  border: 1.5px dashed var(--line2);
+  border-radius: var(--radius-sm);
+}
+
+.rec-placeholder-icon {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 50%;
+  background: var(--orange-soft);
+  border: 1.5px solid #d97706;
+  color: #d97706;
+  font-size: 14px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.rec-placeholder-text {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ---- Opening debtors list ---- */
+.rec-debtor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.rec-debtor-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface-soft);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.rec-debtor-rank {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rec-debtor-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-debtor-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--blue);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .rec-debtor-row {
+    flex-wrap: wrap;
+  }
+}
