@@ -17,6 +17,7 @@ import { money, num, pct, Kpi, SectionHead, Card, Highlights, RatioList, Table }
 import { PeriodContext } from "./periodContext.js";
 import { DEFAULT_FY, DEFAULT_FYS, fiscalYearMonths, monthLabels, periodMonths } from "./fiscalYear.js";
 import { CeoView } from "./pages/CeoView.jsx";
+import { PartyAnalysis } from "./pages/PartyAnalysis.jsx";
 const MONTH_ORDER = fiscalYearMonths(DEFAULT_FY);
 const MONTH_LABELS = monthLabels(MONTH_ORDER);
 const PERIOD_MONTHS = periodMonths(MONTH_ORDER);
@@ -489,6 +490,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
   });
   const { data, error, loading, load, setData, setError } = useDashboardData(sheetUrl, onUnauthorized);
   const [ceoFy, setCeoFy] = useState("");
+  const [partyFy, setPartyFy] = useState("");
 
   const onConnected = (url, dashboard) => {
     try { localStorage.setItem("dl_sheet_url", url); } catch { /* storage unavailable */ }
@@ -637,11 +639,17 @@ function DashboardApp({ onLogout, onUnauthorized }) {
             </div>
           </details>
 
-          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && <div className="loading">Loading dashboard data...</div>}
+          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && <div className="loading">Loading dashboard data...</div>}
           {filters.section === "executive" ? (
             <SheetContext.Provider value={sheetUrl}>
               <ErrorBoundary resetKey="executive">
                 <CeoView fy={ceoFy} onFy={setCeoFy} />
+              </ErrorBoundary>
+            </SheetContext.Provider>
+          ) : filters.section === "parties" ? (
+            <SheetContext.Provider value={sheetUrl}>
+              <ErrorBoundary resetKey="parties">
+                <PartyAnalysis fy={partyFy} onFy={setPartyFy} />
               </ErrorBoundary>
             </SheetContext.Provider>
           ) : ANALYTICS_PAGES.has(filters.section) ? (

@@ -15,6 +15,7 @@ import {
 import { buildDashboardDataFromWorkbook } from "./dashboardBuilder.js";
 import { buildAnalytics } from "./analyticsBuilder.js";
 import { buildCeoOverview } from "./ceoBuilder.js";
+import { buildPartyAnalysis } from "./partyBuilder.js";
 import { fetchGoogleWorkbook, workbookSignature, extractGoogleSheetId } from "./googleSheetsSource.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -163,6 +164,16 @@ async function createApp() {
     } catch (error) {
       next(error);
     }
+  });
+
+  app.get("/api/party", async (req, res, next) => {
+    try {
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      const dash = await fetchDashboard(sheetUrl);
+      const fy = String(req.query.fy || "").trim();
+      res.json(buildPartyAnalysis(dash, fy ? { fy } : {}));
+    } catch (e) { next(e); }
   });
 
   app.post("/api/refresh", async (req, res, next) => {
