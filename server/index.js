@@ -16,6 +16,7 @@ import { buildDashboardDataFromWorkbook } from "./dashboardBuilder.js";
 import { buildAnalytics } from "./analyticsBuilder.js";
 import { buildCeoOverview } from "./ceoBuilder.js";
 import { buildPartyAnalysis } from "./partyBuilder.js";
+import { buildCustomerPareto } from "./paretoBuilder.js";
 import { fetchGoogleWorkbook, workbookSignature, extractGoogleSheetId } from "./googleSheetsSource.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -173,6 +174,16 @@ async function createApp() {
       const dash = await fetchDashboard(sheetUrl);
       const fy = String(req.query.fy || "").trim();
       res.json(buildPartyAnalysis(dash, fy ? { fy } : {}));
+    } catch (e) { next(e); }
+  });
+
+  app.get("/api/customer-pareto", async (req, res, next) => {
+    try {
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      const dash = await fetchDashboard(sheetUrl);
+      const fy = String(req.query.fy || "").trim();
+      res.json(buildCustomerPareto(dash, fy ? { fy } : {}));
     } catch (e) { next(e); }
   });
 
