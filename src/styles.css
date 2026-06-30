@@ -3001,3 +3001,310 @@ tbody tr:hover td { background: var(--blue-soft); }
     font-size: 9px;
   }
 }
+
+/* ============================================================
+   CUSTOMER ANALYSIS — ca-* namespace
+   ============================================================ */
+
+.ca-wrap {
+  display: grid;
+  gap: 16px;
+}
+
+/* 6-column KPI grid for CA (3 per row on desktop) */
+.ca-kpi-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1180px) {
+  .ca-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 820px) {
+  .ca-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .ca-kpi-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- Waterfall ---- */
+.ca-waterfall {
+  display: grid;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.ca-wf-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 56px;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.ca-wf-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ca-wf-track {
+  background: var(--panel2);
+  border-radius: 4px;
+  height: 22px;
+  overflow: hidden;
+}
+
+.ca-wf-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+
+.ca-wf-value {
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .ca-wf-row { grid-template-columns: 110px 1fr 46px; }
+  .ca-wf-label { font-size: 11px; }
+}
+
+/* ---- Segment boxes ---- */
+.ca-seg-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.ca-seg-box {
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.ca-seg-name {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ca-seg-count {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.ca-seg-bar-track {
+  background: var(--panel2);
+  border-radius: 999px;
+  height: 5px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.ca-seg-bar {
+  height: 100%;
+  border-radius: 999px;
+  min-width: 3px;
+  transition: width 0.4s ease;
+}
+
+.ca-seg-pct {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+@media (max-width: 820px) {
+  .ca-seg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .ca-seg-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ca-seg-count { font-size: 20px; }
+}
+
+/* ---- Retention rate bars ---- */
+.ca-ret-list {
+  display: grid;
+  gap: 14px;
+  padding: 4px 0;
+}
+
+.ca-ret-row {
+  display: grid;
+  gap: 6px;
+}
+
+.ca-ret-pair {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ca-ret-bars {
+  display: flex;
+  height: 26px;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.ca-ret-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  transition: width 0.4s ease;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ca-ret-meta {
+  font-size: 12px;
+}
+
+.ca-ret-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.ca-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ---- Frequency bars (vertical) ---- */
+.ca-freq-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 8px 4px 4px;
+  height: 180px;
+}
+
+.ca-freq-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+  gap: 4px;
+}
+
+.ca-freq-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ca-freq-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: var(--panel2);
+  border-radius: 5px 5px 0 0;
+  overflow: hidden;
+}
+
+.ca-freq-bar {
+  width: 100%;
+  border-radius: 5px 5px 0 0;
+  transition: height 0.4s ease;
+  min-height: 4px;
+}
+
+.ca-freq-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---- Cohort grid ---- */
+.ca-cohort-wrap {
+  display: grid;
+  gap: 10px;
+}
+
+.ca-cohort-note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.ca-cohort-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.ca-cohort-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.ca-cohort-table th {
+  background: var(--panel2);
+  padding: 9px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line2);
+  white-space: nowrap;
+}
+
+.ca-cohort-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.ca-cohort-table td:first-child,
+.ca-cohort-table td:nth-child(2) {
+  text-align: left;
+}
+
+.ca-cohort-na {
+  color: var(--faint);
+}
+
+.ca-cohort-cell {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ---- Segment tag (detail table) ---- */
+.ca-seg-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+}

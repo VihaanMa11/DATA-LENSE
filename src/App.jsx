@@ -19,6 +19,7 @@ import { DEFAULT_FY, DEFAULT_FYS, fiscalYearMonths, monthLabels, periodMonths } 
 import { CeoView } from "./pages/CeoView.jsx";
 import { PartyAnalysis } from "./pages/PartyAnalysis.jsx";
 import { CustomerParetoView } from "./pages/CustomerParetoView.jsx";
+import { CustomerAnalysisView } from "./pages/CustomerAnalysisView.jsx";
 const MONTH_ORDER = fiscalYearMonths(DEFAULT_FY);
 const MONTH_LABELS = monthLabels(MONTH_ORDER);
 const PERIOD_MONTHS = periodMonths(MONTH_ORDER);
@@ -63,7 +64,7 @@ const NAV_GROUPS = [
 // Flat lookup [id, code, label] kept for the page-header title.
 const NAV = NAV_GROUPS.flatMap(([, items]) => items.map(([id, label]) => [id, "circle", label]));
 
-const ANALYTICS_PAGES = new Set(["receivables","payables","productpareto","expenses","stockmovement","customeranalysis","salesforecast","productforecast"]);
+const ANALYTICS_PAGES = new Set(["receivables","payables","productpareto","expenses","stockmovement","salesforecast","productforecast"]);
 
 function sum(rows, field) {
   return rows.reduce((acc, row) => acc + (Number(row[field]) || 0), 0);
@@ -493,6 +494,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
   const [ceoFy, setCeoFy] = useState("");
   const [partyFy, setPartyFy] = useState("");
   const [paretoFy, setParetoFy] = useState("");
+  const [caFy, setCaFy] = useState("");
 
   const onConnected = (url, dashboard) => {
     try { localStorage.setItem("dl_sheet_url", url); } catch { /* storage unavailable */ }
@@ -641,7 +643,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
             </div>
           </details>
 
-          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerpareto" && <div className="loading">Loading dashboard data...</div>}
+          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerpareto" && filters.section !== "customeranalysis" && <div className="loading">Loading dashboard data...</div>}
           {filters.section === "executive" ? (
             <SheetContext.Provider value={sheetUrl}>
               <ErrorBoundary resetKey="executive">
@@ -660,6 +662,12 @@ function DashboardApp({ onLogout, onUnauthorized }) {
                 <CustomerParetoView fy={paretoFy} onFy={setParetoFy} />
               </ErrorBoundary>
             </SheetContext.Provider>
+          ) : filters.section === "customeranalysis" ? (
+            <SheetContext.Provider value={sheetUrl}>
+              <ErrorBoundary resetKey="customeranalysis">
+                <CustomerAnalysisView fy={caFy} onFy={setCaFy} />
+              </ErrorBoundary>
+            </SheetContext.Provider>
           ) : ANALYTICS_PAGES.has(filters.section) ? (
             <SheetContext.Provider value={sheetUrl}>
             <PeriodContext.Provider value={{ fy: selectedFy, months: filters.months || currentMonthOrder }}>
@@ -670,7 +678,6 @@ function DashboardApp({ onLogout, onUnauthorized }) {
                  filters.section === "productpareto" ? <ProductPareto /> :
                  filters.section === "expenses" ? <ExpenseAnalysis /> :
                  filters.section === "stockmovement" ? <StockMovement /> :
-                 filters.section === "customeranalysis" ? <CustomerAnalysis /> :
                  filters.section === "salesforecast" ? <SalesForecast /> :
                  filters.section === "productforecast" ? <ProductForecast /> : null}
               </ErrorBoundary>
