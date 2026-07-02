@@ -38,9 +38,10 @@ function saleH(fy, month, party, finalAmount) {
 function retH(fy, month, party, finalAmount) {
   return { tx: "Sales Return", fy, month, party, finalAmount, isHeader: true, amount: finalAmount };
 }
-function receiptH(fy, month, account, credit) {
-  // Receipt vouchers are booked against bank accounts, not party names
-  return { tx: "Receipt", fy, month, account, isHeader: true, credit, debit: 0, businessAmount: credit };
+function receiptH(fy, month, account, amount) {
+  // Receipt vouchers are booked against bank accounts (bank-centric): money received is
+  // the DEBIT on the bank account; credit is blank on the header row.
+  return { tx: "Receipt", fy, month, account, isHeader: true, debit: amount, credit: 0, businessAmount: amount };
 }
 
 const ACCOUNT_MASTER = [

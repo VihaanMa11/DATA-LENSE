@@ -43,9 +43,10 @@ const APR_TO_MAR = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec
 // ---------------------------------------------------------------------------
 
 function extractOpeningBalances(accountMaster) {
-  // Debtors = accounts whose Group Name contains "Debtor" (case-insensitive)
-  // OR accounts with a net opening Dr balance > 0 (fallback when no group info).
-  // "Cash" party is excluded from debtor lists.
+  // Debtors = accounts in a "Sundry Debtors" / receivable group only. We deliberately do
+  // NOT fall back to "any account with a Dr opening balance", because that pulls in
+  // Duties & Taxes, Stock-in-hand, and other asset ledgers and grossly overstates
+  // receivables. "Cash" party is excluded.
   const debtors = [];
   let totalOpeningDr = 0;
 
@@ -59,7 +60,7 @@ function extractOpeningBalances(accountMaster) {
     const openingCr = num(acc.openingCr);
     const netDr = openingDr - openingCr;
 
-    const isDebtor = group.includes("debtor") || group.includes("receivable") || netDr > 0;
+    const isDebtor = group.includes("debtor") || group.includes("receivable");
     if (!isDebtor) continue;
 
     debtors.push({ name, openingDr: Math.max(0, netDr) });
@@ -115,10 +116,12 @@ function aggregateFyCollections(ledgerFacts, fy) {
 
   for (const r of ledgerFacts) {
     if (r.fy !== fy || r.tx !== "Receipt" || !r.isHeader) continue;
-    const credit = num(r.credit);
-    total += credit;
+    // This receipt register is bank-centric: money received is the DEBIT on the bank
+    // account (bank debited when cash comes in). Credit is blank on the header rows.
+    const amount = num(r.debit);
+    total += amount;
     const mi = monthIndex.get(r.month);
-    if (mi !== undefined) monthly[mi] += credit;
+    if (mi !== undefined) monthly[mi] += amount;
   }
 
   return { total, monthly };
