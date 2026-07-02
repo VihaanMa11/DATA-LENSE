@@ -3,6 +3,8 @@
 // Output: see buildCustomerAnalysis JSDoc below.
 // No HTTP, no React, no new dependencies — pure ESM.
 
+import { analyzeFys, resolveCurrentFy } from "./fyUtil.js";
+
 const num = (v) => Number(v) || 0;
 const round1 = (v) => Math.round(v * 10) / 10;
 const roundInt = (v) => Math.round(v);
@@ -178,8 +180,10 @@ export function buildCustomerAnalysis(dashData, options = {}) {
     return emptyResult({ fy: options.fy || null, fyList: [] });
   }
 
-  const lastFy   = fyList[fyList.length - 1];
-  const currentFy = (options.fy && fyList.includes(options.fy)) ? options.fy : lastFy;
+  // ---- Partial FY analysis ----
+  const { partialFys, latestCompleteFy } = analyzeFys(itemFacts, []);
+  const currentFy = resolveCurrentFy(options.fy, fyList, latestCompleteFy);
+  const lastFy   = fyList[fyList.length - 1];  // last in series (for waterfall labels)
   const curIdx   = fyList.indexOf(currentFy);
   const prevFy   = curIdx >= 1 ? fyList[curIdx - 1] : null;
   const firstFy  = fyList[0];
@@ -593,6 +597,7 @@ export function buildCustomerAnalysis(dashData, options = {}) {
     fy: currentFy,
     fyList,
     currentFy,
+    partialFys,
     prevFy,
     kpis,
     alerts,

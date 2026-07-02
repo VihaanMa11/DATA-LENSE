@@ -3,6 +3,8 @@
 // Output: see buildCeoOverview JSDoc below.
 // No HTTP, no React, no new dependencies — pure ESM.
 
+import { analyzeFys, resolveCurrentFy } from "./fyUtil.js";
+
 const num = (v) => Number(v) || 0;
 const round1 = (v) => Math.round(v * 10) / 10;
 const roundInt = (v) => Math.round(v);
@@ -167,7 +169,7 @@ export function buildCeoOverview(dashData, options = {}) {
 
   if (fyList.length === 0) {
     return {
-      fyList: [], currentFy: null, prevFy: null,
+      fyList: [], currentFy: null, prevFy: null, partialFys: [],
       kpis: emptyKpis(),
       alerts: [],
       monthlyByFy: {},
@@ -179,9 +181,11 @@ export function buildCeoOverview(dashData, options = {}) {
     };
   }
 
+  // ---- Partial FY analysis ----
+  const { partialFys, latestCompleteFy } = analyzeFys(itemFacts, ledgerFacts);
+
   // ---- Current / prev FYs ----
-  const latestFy = fyList[fyList.length - 1];
-  const currentFy = (options.fy && fyList.includes(options.fy)) ? options.fy : latestFy;
+  const currentFy = resolveCurrentFy(options.fy, fyList, latestCompleteFy);
   const curIdx = fyList.indexOf(currentFy);
   const prevFy  = curIdx >= 1 ? fyList[curIdx - 1] : null;
   const prev2Fy = curIdx >= 2 ? fyList[curIdx - 2] : null;
@@ -405,6 +409,7 @@ export function buildCeoOverview(dashData, options = {}) {
   return {
     fyList,
     currentFy,
+    partialFys,
     prevFy,
     kpis,
     alerts,

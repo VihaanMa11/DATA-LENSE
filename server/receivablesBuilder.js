@@ -10,6 +10,8 @@
 //
 // No HTTP, no React, no new dependencies — pure ESM.
 
+import { analyzeFys, resolveCurrentFy } from "./fyUtil.js";
+
 const num = (v) => Number(v) || 0;
 const round1 = (v) => Math.round(v * 10) / 10;
 const roundInt = (v) => Math.round(v);
@@ -173,8 +175,9 @@ export function buildReceivables(dashData, options = {}) {
     return emptyResult({ fy: options.fy || null, fyList: [], openingBalance, openingDebtors, topOpeningDebtors });
   }
 
-  const latestFy  = fyList[fyList.length - 1];
-  const currentFy = (options.fy && fyList.includes(options.fy)) ? options.fy : latestFy;
+  // ---- Partial FY analysis ----
+  const { partialFys, latestCompleteFy } = analyzeFys(itemFacts, ledgerFacts);
+  const currentFy = resolveCurrentFy(options.fy, fyList, latestCompleteFy);
   const curIdx    = fyList.indexOf(currentFy);
   const prevFy    = curIdx >= 1 ? fyList[curIdx - 1] : null;
 
@@ -324,12 +327,12 @@ export function buildReceivables(dashData, options = {}) {
     });
   }
 
-  // Partial FY notice
-  const partialFys = fyList.filter((fy) => isPartialFy(fy, itemFacts, ledgerFacts));
-  if (partialFys.length > 0) {
+  // Partial FY notice (local detection uses 6-month threshold for data notes)
+  const localPartialFys = fyList.filter((fy) => isPartialFy(fy, itemFacts, ledgerFacts));
+  if (localPartialFys.length > 0) {
     alerts.push({
       tone: "blue",
-      title: `Partial year data: ${partialFys.join(", ")}`,
+      title: `Partial year data: ${localPartialFys.join(", ")}`,
       detail: "Figures for partial years reflect transactions loaded so far.",
     });
   }
@@ -338,8 +341,8 @@ export function buildReceivables(dashData, options = {}) {
   const dataNotes = [
     "Party-wise collection cannot be computed: Receipt vouchers are booked against bank account names (SBI SALAR, Cash, ICICI), not party names. To get party-wise settlement, export the ledger-wise receipt report from Busy.",
     "Aging buckets (0-30, 31-60, 61-90, 90+ days) require invoice-level settlement data not available in the current export. Export the outstanding ledger report from Busy.",
-    partialFys.length > 0
-      ? `${partialFys.join(", ")} ${partialFys.length === 1 ? "is" : "are"} partial (fewer than 6 months of data loaded). All figures for these years are incomplete.`
+    localPartialFys.length > 0
+      ? `${localPartialFys.join(", ")} ${localPartialFys.length === 1 ? "is" : "are"} partial (fewer than 6 months of data loaded). All figures for these years are incomplete.`
       : null,
     "Opening balance is extracted from the Account Master (Opening Bal. Dr column). This reflects the balance at the start of the first loaded FY, not necessarily April 1 of the current year.",
     "DSO and collection rate are business-level approximations: total outstanding divided by annualised net sales. They cannot be computed per party without the ledger-wise report.",
@@ -349,6 +352,7 @@ export function buildReceivables(dashData, options = {}) {
     fy: currentFy,
     fyList,
     currentFy,
+    partialFys,
     prevFy,
     kpis,
     openingBalance,

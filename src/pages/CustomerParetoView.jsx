@@ -425,6 +425,8 @@ export function CustomerParetoView({ fy, onFy }) {
   const paretoByFy = pareto?.paretoByFy || {};
   const table      = pareto?.table      || [];
 
+  const partialFys = useMemo(() => new Set(pareto?.partialFys || []), [pareto]);
+
   // Per-FY Pareto chart data mapped to ParetoChart's {label,value,cumulativePct}
   const smallParetoData = (fyKey) => {
     const d = paretoByFy[fyKey];
@@ -451,6 +453,7 @@ export function CustomerParetoView({ fy, onFy }) {
               fyList={fyList}
               value={fy}
               onChange={onFy}
+              partialFys={partialFys}
             />
           </div>
 

@@ -3,6 +3,8 @@
 // Output: see buildCustomerPareto JSDoc below.
 // No HTTP, no React, no new dependencies — pure ESM.
 
+import { analyzeFys, resolveCurrentFy } from "./fyUtil.js";
+
 const num = (v) => Number(v) || 0;
 const round1 = (v) => Math.round(v * 10) / 10;
 const roundInt = (v) => Math.round(v);
@@ -106,8 +108,9 @@ export function buildCustomerPareto(dashData, options = {}) {
     return emptyResult({ fy: options.fy || null, fyList: [] });
   }
 
-  const latestFy = fyList[fyList.length - 1];
-  const currentFy = (options.fy && fyList.includes(options.fy)) ? options.fy : latestFy;
+  // ---- Partial FY analysis ----
+  const { partialFys, latestCompleteFy } = analyzeFys(itemFacts, []);
+  const currentFy = resolveCurrentFy(options.fy, fyList, latestCompleteFy);
   const curIdx = fyList.indexOf(currentFy);
   const prevFy = curIdx >= 1 ? fyList[curIdx - 1] : null;
 
@@ -412,6 +415,7 @@ export function buildCustomerPareto(dashData, options = {}) {
     fy: currentFy,
     fyList,
     currentFy,
+    partialFys,
     prevFy,
     kpis,
     insights,

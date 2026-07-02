@@ -361,6 +361,7 @@ export function CustomerAnalysisView({ fy, onFy }) {
   const prevFy      = analysis?.prevFy      || null;
   const kpis        = analysis?.kpis        || {};
   const alerts      = analysis?.alerts      || [];
+  const partialFys  = useMemo(() => new Set(analysis?.partialFys || []), [analysis]);
   const waterfall   = analysis?.waterfall   || [];
   const segments    = analysis?.segments    || [];
   const activeMoM   = analysis?.activeMoM   || { months: [], series: [] };
@@ -394,7 +395,7 @@ export function CustomerAnalysisView({ fy, onFy }) {
               title="Customer Analysis"
               sub="3-year · acquisition · retention · value"
             />
-            <FyToggle fyList={fyList} value={fy} onChange={onFy} />
+            <FyToggle fyList={fyList} value={fy} onChange={onFy} partialFys={partialFys} />
           </div>
 
           {/* 6 KPI cards */}
