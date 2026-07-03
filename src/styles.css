@@ -3452,3 +3452,19 @@ tbody tr:hover td { background: var(--blue-soft); }
     flex-wrap: wrap;
   }
 }
+
+/* ---- Item Groups (ig-*) ---- */
+.ig-wrap { display: flex; flex-direction: column; gap: 10px; }
+.ig-legend { display: flex; gap: 14px; font-size: 11px; color: var(--text-secondary, #5d6678); margin-bottom: 6px; }
+.ig-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.ig-dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.ig-h1h2 { display: flex; flex-direction: column; gap: 3px; }
+.ig-h1h2-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 11px; }
+.ig-h1h2-label { min-width: 96px; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary, #5d6678); font-size: 10px; }
+.ig-h1h2-bar { flex: 1; height: 11px; border-radius: 3px; display: flex; overflow: hidden; gap: 1px; }
+.ig-h1h2-h1 { background: #85B7EB; border-radius: 3px 0 0 3px; }
+.ig-h1h2-h2 { background: #2a78d6; border-radius: 0 3px 3px 0; }
+.ig-h1h2-pct { min-width: 58px; text-align: right; font-size: 10px; }
+.ig-signal { display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
+.ig-spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; }
+.ig-spark-bar { width: 5px; border-radius: 1px 1px 0 0; display: inline-block; }
