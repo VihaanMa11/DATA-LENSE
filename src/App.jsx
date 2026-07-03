@@ -30,6 +30,8 @@ import { VendorPayablesView } from "./pages/VendorPayablesView.jsx";
 import { SalesForecastView } from "./pages/SalesForecastView.jsx";
 import { ExpenseAnalysisView } from "./pages/ExpenseAnalysisView.jsx";
 import { ProductForecastView } from "./pages/ProductForecastView.jsx";
+import { GeoAnalysisView } from "./pages/GeoAnalysisView.jsx";
+import { ProductAnalysisView } from "./pages/ProductAnalysisView.jsx";
 import { ReceivablesView } from "./pages/ReceivablesView.jsx";
 const MONTH_ORDER = fiscalYearMonths(DEFAULT_FY);
 const MONTH_LABELS = monthLabels(MONTH_ORDER);
@@ -47,10 +49,12 @@ const NAV_GROUPS = [
     ["receivables", "Receivables"],
     ["segments", "Segment MIS"],
     ["state", "State MIS"],
+    ["geoanalysis", "Geo Customer Analysis"],
   ]],
   ["Products & Inventory", [
     ["items", "Item Groups"],
     ["productpareto", "Product Pareto"],
+    ["productanalysis", "Product Analysis"],
     ["stockmovement", "Stock Movement"],
     ["uom", "UOM & Stock"],
   ]],
@@ -664,7 +668,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
             </div>
           </details>
 
-          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerpareto" && filters.section !== "customeranalysis" && filters.section !== "receivables" && filters.section !== "items" && filters.section !== "state" && filters.section !== "segments" && filters.section !== "productpareto" && filters.section !== "stockmovement" && filters.section !== "cash" && filters.section !== "payables" && filters.section !== "salesforecast" && filters.section !== "expenses" && filters.section !== "productforecast" && <div className="loading">Loading dashboard data...</div>}
+          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerpareto" && filters.section !== "customeranalysis" && filters.section !== "receivables" && filters.section !== "items" && filters.section !== "state" && filters.section !== "segments" && filters.section !== "productpareto" && filters.section !== "stockmovement" && filters.section !== "cash" && filters.section !== "payables" && filters.section !== "salesforecast" && filters.section !== "expenses" && filters.section !== "productforecast" && filters.section !== "geoanalysis" && filters.section !== "productanalysis" && <div className="loading">Loading dashboard data...</div>}
           {filters.section === "executive" ? (
             <SheetContext.Provider value={sheetUrl}>
               <ErrorBoundary resetKey="executive">
@@ -753,6 +757,18 @@ function DashboardApp({ onLogout, onUnauthorized }) {
             <SheetContext.Provider value={sheetUrl}>
               <ErrorBoundary resetKey="productforecast">
                 <ProductForecastView />
+              </ErrorBoundary>
+            </SheetContext.Provider>
+          ) : filters.section === "geoanalysis" ? (
+            <SheetContext.Provider value={sheetUrl}>
+              <ErrorBoundary resetKey="geoanalysis">
+                <GeoAnalysisView />
+              </ErrorBoundary>
+            </SheetContext.Provider>
+          ) : filters.section === "productanalysis" ? (
+            <SheetContext.Provider value={sheetUrl}>
+              <ErrorBoundary resetKey="productanalysis">
+                <ProductAnalysisView />
               </ErrorBoundary>
             </SheetContext.Provider>
           ) : ANALYTICS_PAGES.has(filters.section) ? (

@@ -29,6 +29,8 @@ import { buildVendorPayables } from "./vendorPayablesBuilder.js";
 import { buildSalesForecast } from "./salesForecastBuilder.js";
 import { buildExpenseAnalysis } from "./expenseAnalysisBuilder.js";
 import { buildProductForecast } from "./productForecastBuilder.js";
+import { buildGeoAnalysis } from "./geoAnalysisBuilder.js";
+import { buildProductAnalysis } from "./productAnalysisBuilder.js";
 import { fetchGoogleWorkbook, workbookSignature, extractGoogleSheetId } from "./googleSheetsSource.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -317,6 +319,26 @@ async function createApp() {
       const fy = String(req.query.fy || "").trim();
       const ti = req.query.targetIdx != null ? { targetIdx: Number(req.query.targetIdx) } : {};
       res.json(buildProductForecast(dash, { ...(fy ? { fy } : {}), ...ti }));
+    } catch (e) { next(e); }
+  });
+
+  app.get("/api/geo-analysis", async (req, res, next) => {
+    try {
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      const dash = await fetchDashboard(sheetUrl);
+      const fy = String(req.query.fy || "").trim();
+      res.json(buildGeoAnalysis(dash, fy ? { fy } : {}));
+    } catch (e) { next(e); }
+  });
+
+  app.get("/api/product-analysis", async (req, res, next) => {
+    try {
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      const dash = await fetchDashboard(sheetUrl);
+      const fy = String(req.query.fy || "").trim();
+      res.json(buildProductAnalysis(dash, fy ? { fy } : {}));
     } catch (e) { next(e); }
   });
 
