@@ -22,6 +22,7 @@ import { CustomerParetoView } from "./pages/CustomerParetoView.jsx";
 import { CustomerAnalysisView } from "./pages/CustomerAnalysisView.jsx";
 import { ItemGroupsView } from "./pages/ItemGroupsView.jsx";
 import { StateMisView } from "./pages/StateMisView.jsx";
+import { SegmentMisView } from "./pages/SegmentMisView.jsx";
 import { ReceivablesView } from "./pages/ReceivablesView.jsx";
 const MONTH_ORDER = fiscalYearMonths(DEFAULT_FY);
 const MONTH_LABELS = monthLabels(MONTH_ORDER);
@@ -501,6 +502,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
   const [recFy, setRecFy] = useState("");
   const [itemsFy, setItemsFy] = useState("");
   const [stateFy, setStateFy] = useState("");
+  const [segFy, setSegFy] = useState("");
 
   const onConnected = (url, dashboard) => {
     try { localStorage.setItem("dl_sheet_url", url); } catch { /* storage unavailable */ }
@@ -649,7 +651,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
             </div>
           </details>
 
-          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerpareto" && filters.section !== "customeranalysis" && filters.section !== "receivables" && filters.section !== "items" && filters.section !== "state" && <div className="loading">Loading dashboard data...</div>}
+          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerpareto" && filters.section !== "customeranalysis" && filters.section !== "receivables" && filters.section !== "items" && filters.section !== "state" && filters.section !== "segments" && <div className="loading">Loading dashboard data...</div>}
           {filters.section === "executive" ? (
             <SheetContext.Provider value={sheetUrl}>
               <ErrorBoundary resetKey="executive">
@@ -690,6 +692,12 @@ function DashboardApp({ onLogout, onUnauthorized }) {
             <SheetContext.Provider value={sheetUrl}>
               <ErrorBoundary resetKey="state">
                 <StateMisView fy={stateFy} onFy={setStateFy} />
+              </ErrorBoundary>
+            </SheetContext.Provider>
+          ) : filters.section === "segments" ? (
+            <SheetContext.Provider value={sheetUrl}>
+              <ErrorBoundary resetKey="segments">
+                <SegmentMisView fy={segFy} onFy={setSegFy} />
               </ErrorBoundary>
             </SheetContext.Provider>
           ) : ANALYTICS_PAGES.has(filters.section) ? (
