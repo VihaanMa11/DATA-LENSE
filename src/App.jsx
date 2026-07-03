@@ -28,6 +28,7 @@ import { StockMovementView } from "./pages/StockMovementView.jsx";
 import { CashBankView } from "./pages/CashBankView.jsx";
 import { VendorPayablesView } from "./pages/VendorPayablesView.jsx";
 import { SalesForecastView } from "./pages/SalesForecastView.jsx";
+import { ExpenseAnalysisView } from "./pages/ExpenseAnalysisView.jsx";
 import { ReceivablesView } from "./pages/ReceivablesView.jsx";
 const MONTH_ORDER = fiscalYearMonths(DEFAULT_FY);
 const MONTH_LABELS = monthLabels(MONTH_ORDER);
@@ -73,7 +74,7 @@ const NAV_GROUPS = [
 // Flat lookup [id, code, label] kept for the page-header title.
 const NAV = NAV_GROUPS.flatMap(([, items]) => items.map(([id, label]) => [id, "circle", label]));
 
-const ANALYTICS_PAGES = new Set(["expenses","productforecast"]);
+const ANALYTICS_PAGES = new Set(["productforecast"]);
 
 function sum(rows, field) {
   return rows.reduce((acc, row) => acc + (Number(row[field]) || 0), 0);
@@ -513,6 +514,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
   const [cashFy, setCashFy] = useState("");
   const [payFy, setPayFy] = useState("");
   const [salesFcFy, setSalesFcFy] = useState("");
+  const [expFy, setExpFy] = useState("");
 
   const onConnected = (url, dashboard) => {
     try { localStorage.setItem("dl_sheet_url", url); } catch { /* storage unavailable */ }
@@ -661,7 +663,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
             </div>
           </details>
 
-          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerpareto" && filters.section !== "customeranalysis" && filters.section !== "receivables" && filters.section !== "items" && filters.section !== "state" && filters.section !== "segments" && filters.section !== "productpareto" && filters.section !== "stockmovement" && filters.section !== "cash" && filters.section !== "payables" && filters.section !== "salesforecast" && <div className="loading">Loading dashboard data...</div>}
+          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerpareto" && filters.section !== "customeranalysis" && filters.section !== "receivables" && filters.section !== "items" && filters.section !== "state" && filters.section !== "segments" && filters.section !== "productpareto" && filters.section !== "stockmovement" && filters.section !== "cash" && filters.section !== "payables" && filters.section !== "salesforecast" && filters.section !== "expenses" && <div className="loading">Loading dashboard data...</div>}
           {filters.section === "executive" ? (
             <SheetContext.Provider value={sheetUrl}>
               <ErrorBoundary resetKey="executive">
@@ -738,6 +740,12 @@ function DashboardApp({ onLogout, onUnauthorized }) {
             <SheetContext.Provider value={sheetUrl}>
               <ErrorBoundary resetKey="salesforecast">
                 <SalesForecastView fy={salesFcFy} onFy={setSalesFcFy} />
+              </ErrorBoundary>
+            </SheetContext.Provider>
+          ) : filters.section === "expenses" ? (
+            <SheetContext.Provider value={sheetUrl}>
+              <ErrorBoundary resetKey="expenses">
+                <ExpenseAnalysisView fy={expFy} onFy={setExpFy} />
               </ErrorBoundary>
             </SheetContext.Provider>
           ) : ANALYTICS_PAGES.has(filters.section) ? (

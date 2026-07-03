@@ -3512,3 +3512,14 @@ tbody tr:hover td { background: var(--blue-soft); }
 .cb-acct-name { min-width: 90px; font-size: 11px; color: var(--text-primary, #1a1a1a); font-weight: 500; }
 .cb-acct-io { flex: 1; font-size: 10px; color: var(--text-muted, #898781); }
 .cb-acct-net { font-size: 11px; font-weight: 600; white-space: nowrap; }
+
+/* ---- Expense Analysis P&L bridge (exp-*) ---- */
+.exp-bridge { display: flex; flex-direction: column; gap: 1px; }
+.exp-bridge-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 0.5px solid var(--border, rgba(11,11,11,.08)); font-size: 11px; }
+.exp-bridge-row:last-child { border-bottom: none; }
+.exp-bridge-row.strong .exp-bridge-label { font-weight: 600; color: var(--text-primary, #1a1a1a); }
+.exp-bridge-row.total { border-top: 0.5px solid var(--border-strong, #b4b2a9); margin-top: 3px; padding-top: 7px; }
+.exp-bridge-label { flex: 1; color: var(--text-secondary, #5d6678); }
+.exp-bridge-amt { min-width: 72px; text-align: right; font-weight: 500; white-space: nowrap; }
+.exp-bridge-track { width: 78px; height: 8px; background: var(--surface-0, #f1f0ec); border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+.exp-bridge-fill { height: 100%; border-radius: 3px; }
