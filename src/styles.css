@@ -3503,3 +3503,12 @@ tbody tr:hover td { background: var(--blue-soft); }
 .sk-turn-track { flex: 1; height: 7px; background: var(--surface-0, #f1f0ec); border-radius: 3px; overflow: hidden; }
 .sk-turn-fill { height: 100%; border-radius: 3px; }
 .sk-turn-pct { min-width: 38px; text-align: right; font-size: 10px; font-weight: 600; }
+
+/* ---- Cash & Bank (cb-*) ---- */
+.cb-acct-list { display: flex; flex-direction: column; gap: 2px; }
+.cb-acct-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 0.5px solid var(--border, rgba(11,11,11,.08)); font-size: 11px; }
+.cb-acct-row:last-child { border-bottom: none; }
+.cb-acct-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+.cb-acct-name { min-width: 90px; font-size: 11px; color: var(--text-primary, #1a1a1a); font-weight: 500; }
+.cb-acct-io { flex: 1; font-size: 10px; color: var(--text-muted, #898781); }
+.cb-acct-net { font-size: 11px; font-weight: 600; white-space: nowrap; }

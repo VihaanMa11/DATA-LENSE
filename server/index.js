@@ -24,6 +24,7 @@ import { buildStateMis } from "./stateMisBuilder.js";
 import { buildSegmentMis } from "./segmentMisBuilder.js";
 import { buildProductPareto } from "./productParetoBuilder.js";
 import { buildStockMovement } from "./stockMovementBuilder.js";
+import { buildCashBank } from "./cashBankBuilder.js";
 import { fetchGoogleWorkbook, workbookSignature, extractGoogleSheetId } from "./googleSheetsSource.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -261,6 +262,16 @@ async function createApp() {
       const dash = await fetchDashboard(sheetUrl);
       const fy = String(req.query.fy || "").trim();
       res.json(buildStockMovement(dash, fy ? { fy } : {}));
+    } catch (e) { next(e); }
+  });
+
+  app.get("/api/cash-bank", async (req, res, next) => {
+    try {
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      const dash = await fetchDashboard(sheetUrl);
+      const fy = String(req.query.fy || "").trim();
+      res.json(buildCashBank(dash, fy ? { fy } : {}));
     } catch (e) { next(e); }
   });
 
