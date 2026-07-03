@@ -24,6 +24,7 @@ import { ItemGroupsView } from "./pages/ItemGroupsView.jsx";
 import { StateMisView } from "./pages/StateMisView.jsx";
 import { SegmentMisView } from "./pages/SegmentMisView.jsx";
 import { ProductParetoView } from "./pages/ProductParetoView.jsx";
+import { StockMovementView } from "./pages/StockMovementView.jsx";
 import { ReceivablesView } from "./pages/ReceivablesView.jsx";
 const MONTH_ORDER = fiscalYearMonths(DEFAULT_FY);
 const MONTH_LABELS = monthLabels(MONTH_ORDER);
@@ -69,7 +70,7 @@ const NAV_GROUPS = [
 // Flat lookup [id, code, label] kept for the page-header title.
 const NAV = NAV_GROUPS.flatMap(([, items]) => items.map(([id, label]) => [id, "circle", label]));
 
-const ANALYTICS_PAGES = new Set(["payables","expenses","stockmovement","salesforecast","productforecast"]);
+const ANALYTICS_PAGES = new Set(["payables","expenses","salesforecast","productforecast"]);
 
 function sum(rows, field) {
   return rows.reduce((acc, row) => acc + (Number(row[field]) || 0), 0);
@@ -505,6 +506,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
   const [stateFy, setStateFy] = useState("");
   const [segFy, setSegFy] = useState("");
   const [prodParetoFy, setProdParetoFy] = useState("");
+  const [stockFy, setStockFy] = useState("");
 
   const onConnected = (url, dashboard) => {
     try { localStorage.setItem("dl_sheet_url", url); } catch { /* storage unavailable */ }
@@ -653,7 +655,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
             </div>
           </details>
 
-          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerpareto" && filters.section !== "customeranalysis" && filters.section !== "receivables" && filters.section !== "items" && filters.section !== "state" && filters.section !== "segments" && filters.section !== "productpareto" && <div className="loading">Loading dashboard data...</div>}
+          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerpareto" && filters.section !== "customeranalysis" && filters.section !== "receivables" && filters.section !== "items" && filters.section !== "state" && filters.section !== "segments" && filters.section !== "productpareto" && filters.section !== "stockmovement" && <div className="loading">Loading dashboard data...</div>}
           {filters.section === "executive" ? (
             <SheetContext.Provider value={sheetUrl}>
               <ErrorBoundary resetKey="executive">
@@ -706,6 +708,12 @@ function DashboardApp({ onLogout, onUnauthorized }) {
             <SheetContext.Provider value={sheetUrl}>
               <ErrorBoundary resetKey="productpareto">
                 <ProductParetoView fy={prodParetoFy} onFy={setProdParetoFy} />
+              </ErrorBoundary>
+            </SheetContext.Provider>
+          ) : filters.section === "stockmovement" ? (
+            <SheetContext.Provider value={sheetUrl}>
+              <ErrorBoundary resetKey="stockmovement">
+                <StockMovementView fy={stockFy} onFy={setStockFy} />
               </ErrorBoundary>
             </SheetContext.Provider>
           ) : ANALYTICS_PAGES.has(filters.section) ? (
