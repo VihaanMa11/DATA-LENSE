@@ -3483,3 +3483,14 @@ tbody tr:hover td { background: var(--blue-soft); }
 .sm-city-track { flex: 1; height: 6px; background: var(--surface-0, #f1f0ec); border-radius: 3px; overflow: hidden; }
 .sm-city-fill { height: 100%; border-radius: 3px; background: #2a78d6; }
 .sm-city-val { min-width: 56px; text-align: right; font-size: 10px; color: var(--text-muted, #898781); }
+
+/* ---- Product Pareto (pp-*) ---- */
+.pp-mrp { display: flex; flex-direction: column; gap: 3px; }
+.pp-mrp-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 11px; border-bottom: 0.5px solid var(--border, rgba(11,11,11,.08)); }
+.pp-mrp-row:last-child { border-bottom: none; }
+.pp-mrp-label { min-width: 74px; color: var(--text-secondary, #5d6678); font-size: 10px; }
+.pp-mrp-track { flex: 1; height: 7px; background: var(--surface-0, #f1f0ec); border-radius: 3px; overflow: hidden; }
+.pp-mrp-fill { height: 100%; border-radius: 3px; }
+.pp-mrp-val { min-width: 56px; text-align: right; font-size: 10px; color: var(--text-muted, #898781); }
+.pp-mrp-sku { min-width: 46px; text-align: right; font-size: 10px; color: var(--text-muted, #898781); }
+.pp-mrp-pct { min-width: 38px; text-align: right; font-size: 10px; font-weight: 600; color: var(--text-secondary, #5d6678); }
