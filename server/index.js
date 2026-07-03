@@ -20,6 +20,7 @@ import { buildCustomerPareto } from "./paretoBuilder.js";
 import { buildCustomerAnalysis } from "./customerAnalysisBuilder.js";
 import { buildReceivables } from "./receivablesBuilder.js";
 import { buildItemGroups } from "./itemGroupsBuilder.js";
+import { buildStateMis } from "./stateMisBuilder.js";
 import { fetchGoogleWorkbook, workbookSignature, extractGoogleSheetId } from "./googleSheetsSource.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -217,6 +218,16 @@ async function createApp() {
       const dash = await fetchDashboard(sheetUrl);
       const fy = String(req.query.fy || "").trim();
       res.json(buildItemGroups(dash, fy ? { fy } : {}));
+    } catch (e) { next(e); }
+  });
+
+  app.get("/api/state-mis", async (req, res, next) => {
+    try {
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      const dash = await fetchDashboard(sheetUrl);
+      const fy = String(req.query.fy || "").trim();
+      res.json(buildStateMis(dash, fy ? { fy } : {}));
     } catch (e) { next(e); }
   });
 

@@ -3468,3 +3468,18 @@ tbody tr:hover td { background: var(--blue-soft); }
 .ig-signal { display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
 .ig-spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; }
 .ig-spark-bar { width: 5px; border-radius: 1px 1px 0 0; display: inline-block; }
+
+/* ---- State MIS (sm-*) ---- */
+.sm-wrap { display: flex; flex-direction: column; gap: 10px; }
+.sm-conc { display: flex; flex-direction: column; gap: 8px; }
+.sm-conc-block { display: flex; flex-direction: column; gap: 3px; }
+.sm-conc-fy { font-size: 11px; font-weight: 600; color: var(--text-secondary, #5d6678); }
+.sm-conc-bar { display: flex; height: 20px; border-radius: 6px; overflow: hidden; gap: 1px; }
+.sm-conc-seg { display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; color: #fff; overflow: hidden; white-space: nowrap; }
+.sm-conc-note { margin-top: 6px; padding: 6px 8px; background: var(--bg-success, #eaf3de); border-radius: 6px; font-size: 10px; color: var(--text-success, #3b6d11); }
+.sm-city-list { display: flex; flex-direction: column; gap: 3px; }
+.sm-city-row { display: flex; align-items: center; gap: 7px; padding: 3px 0; font-size: 11px; }
+.sm-city-name { min-width: 118px; max-width: 118px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary, #5d6678); font-size: 10px; }
+.sm-city-track { flex: 1; height: 6px; background: var(--surface-0, #f1f0ec); border-radius: 3px; overflow: hidden; }
+.sm-city-fill { height: 100%; border-radius: 3px; background: #2a78d6; }
+.sm-city-val { min-width: 56px; text-align: right; font-size: 10px; color: var(--text-muted, #898781); }
