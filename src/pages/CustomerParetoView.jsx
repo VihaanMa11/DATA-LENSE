@@ -407,6 +407,8 @@ function DetailTable({ rows, fyList, currentFy, prevFy }) {
 export function CustomerParetoView({ fy, onFy }) {
   const { pareto, loading, error } = useCustomerPareto(fy);
 
+  const partialFys = useMemo(() => new Set(pareto?.partialFys || []), [pareto]);
+
   if (!pareto && !loading && !error) {
     return (
       <div className="error-box info-box">
@@ -424,8 +426,6 @@ export function CustomerParetoView({ fy, onFy }) {
   const concentrationByFy = pareto?.concentrationByFy || {};
   const paretoByFy = pareto?.paretoByFy || {};
   const table      = pareto?.table      || [];
-
-  const partialFys = useMemo(() => new Set(pareto?.partialFys || []), [pareto]);
 
   // Per-FY Pareto chart data mapped to ParetoChart's {label,value,cumulativePct}
   const smallParetoData = (fyKey) => {

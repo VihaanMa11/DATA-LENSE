@@ -50,11 +50,11 @@ function ConcentrationShift({ concentration }) {
             <div className="sm-conc-fy">{shortFy(c.fy)}</div>
             <div className="sm-conc-bar">
               {rows.map((r, i) => (
-                <div key={r.vendor} className="sm-conc-seg" style={{ flex: Math.max(r.pct, 0.5), background: CONC_COLORS[i % CONC_COLORS.length] }}>
-                  {r.pct >= 12 ? `${r.vendor.slice(0, 8)} ${Math.round(r.pct)}%` : ""}
+                <div key={r.vendor} className="sm-conc-seg" title={`${r.vendor}: ${Math.round(r.pct)}%`} style={{ flex: Math.max(r.pct, 0.5), background: CONC_COLORS[i % CONC_COLORS.length] }}>
+                  {r.pct >= 18 ? `${r.vendor.slice(0, 6)} ${Math.round(r.pct)}%` : r.pct >= 10 ? `${Math.round(r.pct)}%` : ""}
                 </div>
               ))}
-              {c.othersPct > 0 && <div className="sm-conc-seg" style={{ flex: c.othersPct, background: "#d6deea", color: "#5d6678" }}>{c.othersPct >= 10 ? `Others ${Math.round(c.othersPct)}%` : ""}</div>}
+              {c.othersPct > 0 && <div className="sm-conc-seg" title={`Others: ${Math.round(c.othersPct)}%`} style={{ flex: c.othersPct, background: "#d6deea", color: "#5d6678" }}>{c.othersPct >= 12 ? `Others ${Math.round(c.othersPct)}%` : c.othersPct >= 6 ? `${Math.round(c.othersPct)}%` : ""}</div>}
             </div>
           </div>
         );

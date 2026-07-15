@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useCeo } from "../useCeo.js";
 import { SectionHead, Card } from "../components/ui.jsx";
 import { LineChart, DonutChart } from "../components/InteractiveCharts.jsx";
@@ -47,6 +47,7 @@ const APR_TO_MAR = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec
 
 export function CeoView({ fy, onFy }) {
   const { ceo, loading, error } = useCeo(fy);
+  const [paretoStateFilter, setParetoStateFilter] = useState("All");
 
   const partialFys = useMemo(
     () => buildPartialFys(ceo?.monthlyByFy),
@@ -67,6 +68,13 @@ export function CeoView({ fy, onFy }) {
     () => (ceo?.suppliers || []).map((s) => [s.name, s.value]),
     [ceo],
   );
+
+  // Filtered pareto by state
+  const filteredPareto = useMemo(() => {
+    if (!ceo?.pareto) return [];
+    if (paretoStateFilter === "All") return ceo.pareto;
+    return ceo.pareto.filter(p => p.state === paretoStateFilter);
+  }, [ceo?.pareto, paretoStateFilter]);
 
   if (!ceo && !loading && !error) {
     return (
@@ -185,6 +193,7 @@ export function CeoView({ fy, onFy }) {
             <Card
               title="Monthly Net Sales — 3-year overlay"
               sub="Apr through Mar, all financial years"
+              help="Shows net sales for each month across up to 3 financial years. Compare curves to spot seasonal peaks and year-on-year trends. A rising curve that shifts left indicates early-season demand. Hover over any point for exact values."
             >
               <LineChart
                 series={monthlySeries}
@@ -195,6 +204,7 @@ export function CeoView({ fy, onFy }) {
             <Card
               title="YoY Growth by Quarter"
               sub="Year-over-year % change per quarter"
+              help="Compares each quarter's net sales to the same quarter last year (YoY %). Green bars mean growth, red means decline. Use this to identify which quarters are driving or dragging overall performance."
             >
               <QuarterYoyChart
                 data={ceo.yoyByQuarter || []}
@@ -206,21 +216,21 @@ export function CeoView({ fy, onFy }) {
 
           {/* ── Row 2: Top customers / Top products / Supplier concentration ── */}
           <div className="ceo-grid3">
-            <Card title="Top Customers" sub="Net sales, multi-year comparison">
+            <Card title="Top Customers" sub="Net sales, multi-year comparison" help="Ranks your top customers by net sales and shows year-over-year comparison. A shrinking bar for a key customer is an early churn warning. Hover for exact values.">
               <YoyBars
                 rows={ceo.topCustomers || []}
                 fyList={ceo.fyList || []}
                 valueKey="name"
               />
             </Card>
-            <Card title="Top Products" sub="Net sales by brand, multi-year">
+            <Card title="Top Products" sub="Net sales by brand, multi-year" help="Ranks your top brands/products by net sales across years. Brands with growing bars are gaining traction; flat or declining bars warrant investigation.">
               <YoyBars
                 rows={ceo.topProducts || []}
                 fyList={ceo.fyList || []}
                 valueKey="brand"
               />
             </Card>
-            <Card title="Supplier Concentration" sub="Top suppliers by purchase value">
+            <Card title="Supplier Concentration" sub="Top suppliers by purchase value" help="Shows what share of your total purchase value goes to each supplier. High concentration in one or two suppliers increases supply-chain risk.">
               <DonutChart rows={supplierRows} />
             </Card>
           </div>
@@ -229,9 +239,27 @@ export function CeoView({ fy, onFy }) {
           <Card
             title={`Customer Pareto — ${ceo.currentFy || ""}`}
             sub="80/20 concentration view"
+            help="The Customer Pareto chart ranks customers from highest to lowest net sales and overlays the cumulative % line. The point where the line crosses 80% shows how many customers account for 80% of your revenue. Use the State filter to focus on a specific geography."
           >
+            {(ceo.paretoStates || []).length > 0 && (
+              <div className="ceo-pareto-filters">
+                <label className="ceo-pareto-filter-label">
+                  State
+                  <select
+                    value={paretoStateFilter}
+                    onChange={e => setParetoStateFilter(e.target.value)}
+                    className="ceo-pareto-filter-select"
+                  >
+                    <option value="All">All States</option>
+                    {(ceo.paretoStates || []).map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
             <ParetoChart
-              data={ceo.pareto || []}
+              data={filteredPareto}
               title={`Customer Pareto — ${ceo.currentFy || ""}`}
               barLabel="Net sales"
             />

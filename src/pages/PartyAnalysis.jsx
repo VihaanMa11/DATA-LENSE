@@ -57,8 +57,8 @@ function StatusTag({ status, segmentKey }) {
 function KpiStrip({ kpis }) {
   const items = [
     { label: "Trade Customers",   value: String(kpis.tradeCustomers),         tone: "#2563eb" },
-    { label: "Net Sales (Trade)", value: `${bigMoney(kpis.netSalesTrade)} L`, tone: "#12b76a", note: fmtMoney(kpis.netSalesTrade) },
-    { label: "Avg Bill Value",    value: `${bigMoney(kpis.avgBillValue)} L`,  tone: "#7c5cff", note: fmtMoney(kpis.avgBillValue) },
+    { label: "Net Sales (Trade)", value: bigMoney(kpis.netSalesTrade), tone: "#12b76a", note: fmtMoney(kpis.netSalesTrade) },
+    { label: "Avg Bill Value",    value: bigMoney(kpis.avgBillValue),  tone: "#7c5cff", note: fmtMoney(kpis.avgBillValue) },
     { label: "Regular Buyers",    value: String(kpis.regularBuyers),           tone: "#12b76a" },
     { label: "Silent Parties",    value: String(kpis.silentParties),           tone: "#ef4444" },
   ];
@@ -277,20 +277,20 @@ export function PartyAnalysis({ fy, onFy }) {
 
           {/* Grid 3: segments / frequency / avg bill */}
           <div className="ceo-grid3">
-            <Card title="Customer segments" sub="Buying frequency classification">
+            <Card title="Customer segments" sub="Buying frequency classification" help="Classifies each customer by how often they bought: Regular (≥4 bills), Active (2–3), Occasional (1), Lost (no purchase this FY). The donut shows how many customers fall in each category.">
               <SegmentCard segments={party.segments} />
             </Card>
-            <Card title="Buying frequency — top 6" sub="Bills placed in the year">
+            <Card title="Buying frequency — top 6" sub="Bills placed in the year" help="Lists the 6 customers who placed the most bills this FY. High frequency with low average order size may indicate smaller, more urgent reorders.">
               <FrequencyList rows={party.topByFrequency} />
             </Card>
-            <Card title="Avg bill value — top 6" sub="Average order size (min 1 bill)">
+            <Card title="Avg bill value — top 6" sub="Average order size (min 1 bill)" help="Lists the 6 customers with the highest average bill size. Customers with high avg bill value but low frequency are high-value but infrequent — worth nurturing.">
               <AvgBillList rows={party.topByAvgBill} />
             </Card>
           </div>
 
           {/* Grid 2: net sales ranking chart / MoM trend */}
           <div className="ceo-grid2">
-            <Card title="Net sales ranking — top 10" sub="Bar chart sorted by net sales">
+            <Card title="Net sales ranking — top 10" sub="Bar chart sorted by net sales" help="Ranks your top 10 customers by net sales. The longer the bar, the greater their revenue contribution. Customers near the top warrant priority service and relationship management.">
               <BarChart rows={barRows} />
               {party.netSalesRanking.some(r => r.returnPct > 0) && (
                 <p className="pa-footnote">
@@ -298,7 +298,7 @@ export function PartyAnalysis({ fy, onFy }) {
                 </p>
               )}
             </Card>
-            <Card title="Month-on-month sales trend — top 4" sub="Net sales per month, Apr through Mar">
+            <Card title="Month-on-month sales trend — top 4" sub="Net sales per month, Apr through Mar" help="Tracks your top 4 customers' monthly net sales across the year. Diverging lines reveal which customers are growing vs. slowing within the year.">
               <LineChart
                 series={party.momTop4?.series || []}
                 months={APR_TO_MAR}

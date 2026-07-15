@@ -18,8 +18,6 @@ import { PeriodContext } from "./periodContext.js";
 import { DEFAULT_FY, DEFAULT_FYS, fiscalYearMonths, monthLabels, periodMonths } from "./fiscalYear.js";
 import { CeoView } from "./pages/CeoView.jsx";
 import { PartyAnalysis } from "./pages/PartyAnalysis.jsx";
-import { CustomerParetoView } from "./pages/CustomerParetoView.jsx";
-import { CustomerAnalysisView } from "./pages/CustomerAnalysisView.jsx";
 import { ItemGroupsView } from "./pages/ItemGroupsView.jsx";
 import { StateMisView } from "./pages/StateMisView.jsx";
 import { SegmentMisView } from "./pages/SegmentMisView.jsx";
@@ -33,6 +31,7 @@ import { ProductForecastView } from "./pages/ProductForecastView.jsx";
 import { GeoAnalysisView } from "./pages/GeoAnalysisView.jsx";
 import { ProductAnalysisView } from "./pages/ProductAnalysisView.jsx";
 import { ReceivablesView } from "./pages/ReceivablesView.jsx";
+import { CustomerCombinedView } from "./pages/CustomerCombinedView.jsx";
 const MONTH_ORDER = fiscalYearMonths(DEFAULT_FY);
 const MONTH_LABELS = monthLabels(MONTH_ORDER);
 const PERIOD_MONTHS = periodMonths(MONTH_ORDER);
@@ -44,10 +43,8 @@ const NAV_GROUPS = [
   ]],
   ["Sales & Customers", [
     ["parties", "Party Analysis"],
-    ["customerpareto", "Customer Pareto"],
-    ["customeranalysis", "Customer Analysis"],
+    ["customerreports", "Customer Reports"],
     ["receivables", "Receivables"],
-    ["segments", "Segment MIS"],
     ["state", "State MIS"],
     ["geoanalysis", "Geo Customer Analysis"],
   ]],
@@ -56,7 +53,7 @@ const NAV_GROUPS = [
     ["productpareto", "Product Pareto"],
     ["productanalysis", "Product Analysis"],
     ["stockmovement", "Stock Movement"],
-    ["uom", "UOM & Stock"],
+    ["segments", "Segment MIS"],
   ]],
   ["Purchase & Vendors", [
     ["payables", "Vendor & Payables"],
@@ -456,20 +453,14 @@ function Dashboard({ data, filters, monthOrder, labels, periodMap }) {
       {active === "transport" && (
         <section className="section active">
           <SectionHead code="TR" title="Transport / Distance Analysis" sub="Transport fields from transaction registers" />
+          {salesTransport.length === 1 && salesTransport[0][0] === "Unspecified" && (
+            <div className="error-box info-box" style={{ marginBottom: 16 }}>
+              No transport data found. Ensure your sales/purchase exports include a <b>Transport</b> column. All rows are currently mapped to "Unspecified".
+            </div>
+          )}
           <div className="grid2">
             <Card title="Sales by Transport" sub="Transport field from sales register" badge="Sales"><BarChart rows={salesTransport} /></Card>
             <Card title="Purchase by Transport" sub="Transport field from purchase register" badge="Purchase" badgeClass="green"><BarChart rows={purchaseTransport} /></Card>
-          </div>
-        </section>
-      )}
-
-      {active === "uom" && (
-        <section className="section active">
-          <SectionHead code="UO" title="UOM & Opening Stock Analysis" sub="Unit mapping from item master; stock is opening stock only" />
-          <div className="grid3">
-            <Card title="Main Unit Revenue Split" sub="Sales amount by Main Unit" badge="UOM"><DonutChart rows={groupRows(totals.salesLines, "mainUnit", "amount", 12)} /></Card>
-            <Card title="Alt Unit Revenue Split" sub="Sales amount by Alt. Unit" badge="Alt UOM" badgeClass="green"><DonutChart rows={groupRows(totals.salesLines, "altUnit", "amount", 12)} /></Card>
-            <Card title="Quantity by Unit" sub="Transaction quantity by Main Unit" badge="Qty" badgeClass="blue"><BarChart rows={groupRows(filtered.items, "mainUnit", "qty", 12)} /></Card>
           </div>
         </section>
       )}
@@ -508,8 +499,6 @@ function DashboardApp({ onLogout, onUnauthorized }) {
   const { data, error, loading, load, setData, setError } = useDashboardData(sheetUrl, onUnauthorized);
   const [ceoFy, setCeoFy] = useState("");
   const [partyFy, setPartyFy] = useState("");
-  const [paretoFy, setParetoFy] = useState("");
-  const [caFy, setCaFy] = useState("");
   const [recFy, setRecFy] = useState("");
   const [itemsFy, setItemsFy] = useState("");
   const [stateFy, setStateFy] = useState("");
@@ -629,46 +618,44 @@ function DashboardApp({ onLogout, onUnauthorized }) {
           {!sheetUrl && (
             <div className="error-box info-box">No Google Sheet connected. Open <b>Data Source</b> (top right) and paste your sheet URL, then press <b>Sync Now</b> to load the dashboard.</div>
           )}
-          <div className="control-row">
-            <label className="searchbox">
-              <span className="search-glyph" aria-hidden="true" />
-              <input value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Search reports, parties, items..." />
-            </label>
-            <ToggleSwitch checked={grossMode} onChange={setGrossMode} />
-            <label className="fy-select">
-              <span>FY</span>
-              <select
-                value={selectedFy}
-                onChange={(event) => {
-                  const fy = event.target.value;
-                  const nextMonths = fiscalYearMonths(fy);
-                  setFilters((f) => ({ ...f, fy, months: nextMonths, periodGranular: false }));
-                }}
-              >
-                {availableFys.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
-              </select>
-            </label>
-            <PeriodBar
-              months={filters.months || currentMonthOrder}
-              granular={filters.periodGranular || false}
-              monthOrder={currentMonthOrder}
-              labels={currentMonthLabels}
-              periodMap={currentPeriodMap}
-              onChange={(next, gran) => setFilters((f) => ({ ...f, months: next, periodGranular: gran }))}
-            />
-          </div>
+          {["transport", "adjustments", "sources"].includes(filters.section) && (
+            <>
+              <div className="control-row">
+                <label className="fy-select">
+                  <span>FY</span>
+                  <select
+                    value={selectedFy}
+                    onChange={(event) => {
+                      const fy = event.target.value;
+                      const nextMonths = fiscalYearMonths(fy);
+                      setFilters((f) => ({ ...f, fy, months: nextMonths, periodGranular: false }));
+                    }}
+                  >
+                    {availableFys.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
+                  </select>
+                </label>
+                <PeriodBar
+                  months={filters.months || currentMonthOrder}
+                  granular={filters.periodGranular || false}
+                  monthOrder={currentMonthOrder}
+                  labels={currentMonthLabels}
+                  periodMap={currentPeriodMap}
+                  onChange={(next, gran) => setFilters((f) => ({ ...f, months: next, periodGranular: gran }))}
+                />
+              </div>
+              <details className="downloadbar advanced-filters">
+                <summary>Advanced filters</summary>
+                <div className="filter-grid">
+                  <SelectFilter label="Transaction" value={filters.tx} values={filterOptions.txs} onChange={(value) => updateFilter("tx", value)} />
+                  <SelectFilter label="Party / Account" value={filters.party} values={filterOptions.parties} onChange={(value) => updateFilter("party", value)} />
+                  <SelectFilter label="State" value={filters.state} values={filterOptions.states} onChange={(value) => updateFilter("state", value)} />
+                  <SelectFilter label="Item Group" value={filters.itemGroup} values={filterOptions.groups} onChange={(value) => updateFilter("itemGroup", value)} />
+                </div>
+              </details>
+            </>
+          )}
 
-          <details className="downloadbar advanced-filters">
-            <summary>Advanced filters</summary>
-            <div className="filter-grid">
-              <SelectFilter label="Transaction" value={filters.tx} values={filterOptions.txs} onChange={(value) => updateFilter("tx", value)} />
-              <SelectFilter label="Party / Account" value={filters.party} values={filterOptions.parties} onChange={(value) => updateFilter("party", value)} />
-              <SelectFilter label="State" value={filters.state} values={filterOptions.states} onChange={(value) => updateFilter("state", value)} />
-              <SelectFilter label="Item Group" value={filters.itemGroup} values={filterOptions.groups} onChange={(value) => updateFilter("itemGroup", value)} />
-            </div>
-          </details>
-
-          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerpareto" && filters.section !== "customeranalysis" && filters.section !== "receivables" && filters.section !== "items" && filters.section !== "state" && filters.section !== "segments" && filters.section !== "productpareto" && filters.section !== "stockmovement" && filters.section !== "cash" && filters.section !== "payables" && filters.section !== "salesforecast" && filters.section !== "expenses" && filters.section !== "productforecast" && filters.section !== "geoanalysis" && filters.section !== "productanalysis" && <div className="loading">Loading dashboard data...</div>}
+          {loading && !data && !ANALYTICS_PAGES.has(filters.section) && filters.section !== "executive" && filters.section !== "parties" && filters.section !== "customerreports" && filters.section !== "receivables" && filters.section !== "items" && filters.section !== "state" && filters.section !== "segments" && filters.section !== "productpareto" && filters.section !== "stockmovement" && filters.section !== "cash" && filters.section !== "payables" && filters.section !== "salesforecast" && filters.section !== "expenses" && filters.section !== "productforecast" && filters.section !== "geoanalysis" && filters.section !== "productanalysis" && <div className="loading">Loading dashboard data...</div>}
           {filters.section === "executive" ? (
             <SheetContext.Provider value={sheetUrl}>
               <ErrorBoundary resetKey="executive">
@@ -681,16 +668,10 @@ function DashboardApp({ onLogout, onUnauthorized }) {
                 <PartyAnalysis fy={partyFy} onFy={setPartyFy} />
               </ErrorBoundary>
             </SheetContext.Provider>
-          ) : filters.section === "customerpareto" ? (
+          ) : filters.section === "customerreports" ? (
             <SheetContext.Provider value={sheetUrl}>
-              <ErrorBoundary resetKey="customerpareto">
-                <CustomerParetoView fy={paretoFy} onFy={setParetoFy} />
-              </ErrorBoundary>
-            </SheetContext.Provider>
-          ) : filters.section === "customeranalysis" ? (
-            <SheetContext.Provider value={sheetUrl}>
-              <ErrorBoundary resetKey="customeranalysis">
-                <CustomerAnalysisView fy={caFy} onFy={setCaFy} />
+              <ErrorBoundary resetKey="customerreports">
+                <CustomerCombinedView />
               </ErrorBoundary>
             </SheetContext.Provider>
           ) : filters.section === "receivables" ? (

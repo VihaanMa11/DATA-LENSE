@@ -45,7 +45,7 @@ function GroupTrendChart({ groupTrend }) {
       grid: { borderColor: "#e3e8f0", strokeDashArray: 4 },
       xaxis: {
         categories: groupTrend.groups,
-        labels: { style: { colors: "#5d6678", fontSize: "10px" }, rotate: -35, trim: true },
+        labels: { style: { colors: "#5d6678", fontSize: "10px" }, rotate: -45, rotateAlways: true, hideOverlappingLabels: false, trim: false },
         axisBorder: { show: false },
       },
       yaxis: { labels: { formatter: (v) => bigMoney(v), style: { colors: "#5d6678", fontSize: "11px" } } },
@@ -55,7 +55,7 @@ function GroupTrendChart({ groupTrend }) {
     return { options: opts, series: ser };
   }, [groupTrend]);
   if (!options) return <div className="empty">No data</div>;
-  return <div className="chart-frame apex-frame"><ReactApexChart options={options} series={series} type="bar" height={230} /></div>;
+  return <div className="chart-frame apex-frame"><ReactApexChart options={options} series={series} type="bar" height={320} /></div>;
 }
 
 // ---------------------------------------------------------------------------

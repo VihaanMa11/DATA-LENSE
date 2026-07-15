@@ -348,6 +348,8 @@ function DetailTable({ rows, fyList, currentFy }) {
 export function CustomerAnalysisView({ fy, onFy }) {
   const { analysis, loading, error } = useCustomerAnalysis(fy);
 
+  const partialFys  = useMemo(() => new Set(analysis?.partialFys || []), [analysis]);
+
   if (!analysis && !loading && !error) {
     return (
       <div className="error-box info-box">
@@ -361,7 +363,6 @@ export function CustomerAnalysisView({ fy, onFy }) {
   const prevFy      = analysis?.prevFy      || null;
   const kpis        = analysis?.kpis        || {};
   const alerts      = analysis?.alerts      || [];
-  const partialFys  = useMemo(() => new Set(analysis?.partialFys || []), [analysis]);
   const waterfall   = analysis?.waterfall   || [];
   const segments    = analysis?.segments    || [];
   const activeMoM   = analysis?.activeMoM   || { months: [], series: [] };

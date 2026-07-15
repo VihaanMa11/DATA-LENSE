@@ -39,7 +39,7 @@ function ParetoChart({ pareto, fyList }) {
       dataLabels: { enabled: false },
       legend: { position: "top", horizontalAlign: "left", fontSize: "10px" },
       grid: { borderColor: "#e3e8f0", strokeDashArray: 4 },
-      xaxis: { categories: pareto.skus, labels: { style: { colors: "#5d6678", fontSize: "8px" }, rotate: -50, trim: true } },
+      xaxis: { categories: pareto.skus, labels: { style: { colors: "#5d6678", fontSize: "8px" }, rotate: -60, rotateAlways: true, hideOverlappingLabels: false, trim: false } },
       yaxis: [
         { seriesName: shortFy(fyList[0]), labels: { formatter: (v) => bigMoney(v), style: { colors: "#5d6678", fontSize: "9px" } } },
         ...Array(Math.max(0, pareto.bars.length - 1)).fill({ show: false, seriesName: shortFy(fyList[0]) }),
@@ -51,7 +51,7 @@ function ParetoChart({ pareto, fyList }) {
     return { options: opts, series: [...barSeries, cumSeries, eighty] };
   }, [pareto, fyList]);
   if (!options) return <div className="empty">No data</div>;
-  return <div className="chart-frame apex-frame"><ReactApexChart options={options} series={series} type="line" height={230} /></div>;
+  return <div className="chart-frame apex-frame" style={{ overflowX: "auto" }}><ReactApexChart options={options} series={series} type="line" height={300} /></div>;
 }
 
 function MrpBands({ bands }) {
