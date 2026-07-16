@@ -453,9 +453,9 @@ function Dashboard({ data, filters, monthOrder, labels, periodMap }) {
       {active === "transport" && (
         <section className="section active">
           <SectionHead code="TR" title="Transport / Distance Analysis" sub="Transport fields from transaction registers" />
-          {salesTransport.length === 1 && salesTransport[0][0] === "Unspecified" && (
+          {![...salesTransport, ...purchaseTransport].some(([label]) => label && label !== "Unspecified") && (
             <div className="error-box info-box" style={{ marginBottom: 16 }}>
-              No transport data found. Ensure your sales/purchase exports include a <b>Transport</b> column. All rows are currently mapped to "Unspecified".
+              No mapped transport values found. Ensure your sales/purchase exports include a <b>Transport</b> column.
             </div>
           )}
           <div className="grid2">

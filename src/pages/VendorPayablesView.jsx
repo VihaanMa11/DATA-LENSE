@@ -54,7 +54,7 @@ function ConcentrationShift({ concentration }) {
                   {r.pct >= 18 ? `${r.vendor.slice(0, 6)} ${Math.round(r.pct)}%` : r.pct >= 10 ? `${Math.round(r.pct)}%` : ""}
                 </div>
               ))}
-              {c.othersPct > 0 && <div className="sm-conc-seg" title={`Others: ${Math.round(c.othersPct)}%`} style={{ flex: c.othersPct, background: "#d6deea", color: "#5d6678" }}>{c.othersPct >= 12 ? `Others ${Math.round(c.othersPct)}%` : c.othersPct >= 6 ? `${Math.round(c.othersPct)}%` : ""}</div>}
+              {c.othersPct > 0 && <div key={`${c.fy}-others`} className="sm-conc-seg" title={`Others: ${Math.round(c.othersPct)}%`} style={{ flex: c.othersPct, background: "#d6deea", color: "#5d6678" }}>{c.othersPct >= 12 ? `Others ${Math.round(c.othersPct)}%` : c.othersPct >= 6 ? `${Math.round(c.othersPct)}%` : ""}</div>}
             </div>
           </div>
         );

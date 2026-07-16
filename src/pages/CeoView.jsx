@@ -69,11 +69,17 @@ export function CeoView({ fy, onFy }) {
     [ceo],
   );
 
-  // Filtered pareto by state
+  // Filtered pareto by state — recalculate cumulativePct for the filtered subset
   const filteredPareto = useMemo(() => {
     if (!ceo?.pareto) return [];
     if (paretoStateFilter === "All") return ceo.pareto;
-    return ceo.pareto.filter(p => p.state === paretoStateFilter);
+    const filtered = ceo.pareto.filter(p => p.state === paretoStateFilter);
+    const total = filtered.reduce((sum, p) => sum + (Number(p.value) || 0), 0);
+    let running = 0;
+    return filtered.map(p => {
+      running += (Number(p.value) || 0);
+      return { ...p, cumulativePct: total > 0 ? Math.round((running / total) * 1000) / 10 : 0 };
+    });
   }, [ceo?.pareto, paretoStateFilter]);
 
   if (!ceo && !loading && !error) {
