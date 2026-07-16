@@ -63,8 +63,18 @@ export function SectionHead({ code, title, sub }) {
   );
 }
 
-export function Card({ title, sub, badge, badgeClass = "", children, expandable = true }) {
+export function Card({ title, sub, badge, badgeClass = "", children, expandable = true, help }) {
   const [open, setOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpRef = useRef(null);
+
+  useEffect(() => {
+    if (!helpOpen) return;
+    const handler = (e) => { if (helpRef.current && !helpRef.current.contains(e.target)) setHelpOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [helpOpen]);
+
   return (
     <div className="card">
       <div className="card-head">
@@ -74,6 +84,16 @@ export function Card({ title, sub, badge, badgeClass = "", children, expandable 
         </div>
         <div className="card-actions">
           {badge && <span className={`badge ${badgeClass}`}>{badge}</span>}
+          {help && (
+            <div className="help-bubble-wrap" ref={helpRef}>
+              <button type="button" className="icon-btn help-btn" title="How to read this chart" aria-label="Chart explanation" onClick={() => setHelpOpen(v => !v)}>?</button>
+              {helpOpen && (
+                <div className="help-popover" role="tooltip">
+                  <div className="help-popover-inner">{help}</div>
+                </div>
+              )}
+            </div>
+          )}
           {expandable && (
             <button type="button" className="icon-btn" title="Expand & export" aria-label={`Expand ${title || "panel"}`} onClick={() => setOpen(true)}>
               <ExpandIcon />

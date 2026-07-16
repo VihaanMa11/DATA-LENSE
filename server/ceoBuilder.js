@@ -58,6 +58,7 @@ function aggregateFy(facts, fy) {
   // Per-party (customer) net sales — use bill-level finalAmount
   const custGross = new Map();  // party → grossSales
   const custReturn = new Map(); // party → salesReturn
+  const custState = new Map();  // party → state (last known)
 
   // Per-itemGroup net sales — use LINE-level amount
   const groupGross = new Map();
@@ -78,6 +79,7 @@ function aggregateFy(facts, fy) {
         const mi = monthIndex.get(r.month);
         if (mi !== undefined) monthly[mi] += fa;
         custGross.set(r.party, (custGross.get(r.party) || 0) + fa);
+        if (r.state && r.state !== "Unmapped") custState.set(r.party, r.state);
       }
       // line-level for itemGroup
       const ig = r.itemGroup || "Unknown";
@@ -127,7 +129,7 @@ function aggregateFy(facts, fy) {
   return {
     grossSales, salesReturn, netSales, billCount, avgBill,
     grossPurchase, purchaseReturn, netPurchase,
-    returnRate, activeCustomers, custNet, groupNet,
+    returnRate, activeCustomers, custNet, custState, groupNet,
     vendorPurchase, monthly,
   };
 }
@@ -403,8 +405,11 @@ export function buildCeoOverview(dashData, options = {}) {
     .slice(0, 20)
     .map(([label, value]) => {
       cumPct += totalCurSales > 0 ? (value / totalCurSales) * 100 : 0;
-      return { label, value, cumulativePct: round1(cumPct) };
+      return { label, value, cumulativePct: round1(cumPct), state: aggCur.custState.get(label) || "" };
     });
+
+  // Unique states for pareto filter
+  const paretoStates = [...new Set(pareto.map((p) => p.state).filter(Boolean))].sort();
 
   return {
     fyList,
@@ -419,6 +424,7 @@ export function buildCeoOverview(dashData, options = {}) {
     topProducts:  productRows,
     suppliers,
     pareto,
+    paretoStates,
   };
 }
 
