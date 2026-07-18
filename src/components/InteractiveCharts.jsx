@@ -61,20 +61,26 @@ export function DonutChart({ rows }) {
     colors: PALETTE,
     stroke: { width: 2, colors: ["#ffffff"] },
     fill: { type: "gradient", gradient: { shade: "light", shadeIntensity: 0.25 } },
+    // Legend below (not beside) the donut: a side legend squeezes the pie's radius in
+    // any narrow grid column, which crams the in-slice % labels on top of each other
+    // and the center total. ApexCharts' own `responsive` breakpoints key off the
+    // browser window width, not the card's actual rendered width, so they never fire
+    // inside a multi-column grid — this has to be the default, not a breakpoint.
     legend: {
-      position: "right", fontSize: "12px", fontFamily: FONT, fontWeight: 500,
+      position: "bottom", fontSize: "12px", fontFamily: FONT, fontWeight: 500,
       labels: { colors: INK }, markers: { width: 10, height: 10, radius: 3 },
-      itemMargin: { vertical: 4 }, formatter: (name) => (name.length > 22 ? `${name.slice(0, 22)}…` : name),
+      itemMargin: { horizontal: 8, vertical: 4 }, formatter: (name) => (name.length > 22 ? `${name.slice(0, 22)}…` : name),
     },
     dataLabels: {
       enabled: true, formatter: (val) => `${Number(val).toFixed(1)}%`,
       style: { fontSize: "11px", fontWeight: 700, fontFamily: FONT },
       dropShadow: { enabled: true, blur: 1, opacity: 0.35 },
+      // Skip labels on slivers too thin to hold text without overlapping a neighbor.
+      minAngleToShowLabel: 12,
     },
     plotOptions: {
       pie: {
         expandOnClick: true,
-        offsetX: -8,
         donut: {
           size: "66%",
           labels: {
@@ -95,12 +101,15 @@ export function DonutChart({ rows }) {
         return `${money(val)}  ·  ${share}%`;
       } },
     },
-    responsive: [{ breakpoint: 720, options: { legend: { position: "bottom" }, plotOptions: { pie: { offsetX: 0 } } } }],
   };
+
+  // Bottom legend needs vertical room proportional to how many rows it wraps into,
+  // not the fixed height that was sized for a side legend.
+  const height = 300 + Math.ceil(labels.length / 3) * 26;
 
   return (
     <div className="chart-frame donut-frame apex-frame">
-      <ReactApexChart options={options} series={series} type="donut" height={320} />
+      <ReactApexChart options={options} series={series} type="donut" height={height} />
     </div>
   );
 }
