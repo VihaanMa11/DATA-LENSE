@@ -37,6 +37,23 @@ function nextFyLabel(fy) {
 const APR_TO_MAR = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
 const H1_IDX = [0, 1, 2, 3, 4, 5];
 
+// Number of distinct calendar months of `fy` that actually have Sales/Sales Return data
+// loaded, business-wide. Used so a partial FY's flat run-rate divides by how much of
+// the year has actually happened, not always by 12.
+function loadedMonthCount(itemFacts, fy) {
+  const months = fiscalYearMonths(fy);
+  const idx = new Map(months.map((m, i) => [m, i]));
+  const seen = new Set();
+  for (const r of itemFacts) {
+    if (r.fy !== fy) continue;
+    if (r.tx !== "Sales" && r.tx !== "Sales Return") continue;
+    if (String(r.party || "").toLowerCase() === "cash") continue;
+    const mi = idx.get(r.month);
+    if (mi !== undefined) seen.add(mi);
+  }
+  return seen.size;
+}
+
 // Per-SKU aggregation for a FY: monthly net, in/out qty, group, last sale, months active.
 function aggregateSkusFy(itemFacts, fy) {
   const months = fiscalYearMonths(fy);
@@ -90,13 +107,18 @@ export function buildProductForecast(dashData, options = {}) {
 
   const cur = aggregateSkusFy(itemFacts, currentFy);
   const prev = prevFy ? aggregateSkusFy(itemFacts, prevFy) : new Map();
+  // Divide the flat run-rate by how much of currentFy has actually happened, not
+  // always by 12 — otherwise a partial FY (e.g. 1 month loaded) understates every
+  // SKU's monthly run-rate by up to 12x, which was cascading into an under-forecast
+  // "flat" baseline and a distorted flat-vs-adjusted comparison.
+  const loadedMonths = Math.max(1, loadedMonthCount(itemFacts, currentFy));
 
   // ---- Per-SKU forecast rows ----
   const rows = [];
   for (const [sku, e] of cur) {
     const ytd = e.monthly.reduce((s, v) => s + v, 0);
     if (ytd <= 0 && e.outQty <= 0) continue;
-    const avg = ytd / 12;
+    const avg = ytd / loadedMonths;
     const seasonalIdx = avg > 0 ? e.monthly[targetIdx] / avg : 1; // 1 = average month
     const flat = Math.max(0, avg);
     const adjusted = Math.max(0, e.monthly[targetIdx]); // the month's own actual last year = seasonality truth

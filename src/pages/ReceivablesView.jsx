@@ -229,6 +229,77 @@ function OutstandingByFyChart({ outstandingByFy }) {
 }
 
 // ---------------------------------------------------------------------------
+// Ageing buckets bar chart
+// ---------------------------------------------------------------------------
+function AgingBucketsChart({ buckets, asOfDate }) {
+  if (!buckets) return <div className="empty">No ageing data</div>;
+  const rows = [
+    ["0-30 days", buckets.current || 0],
+    ["31-60 days", buckets.d31_60 || 0],
+    ["61-90 days", buckets.d61_90 || 0],
+    ["90+ days", buckets.d90plus || 0],
+  ];
+  const total = rows.reduce((s, [, v]) => s + v, 0);
+  if (total <= 0) return <div className="empty">No outstanding to age</div>;
+  return (
+    <div>
+      <BarChart rows={rows} />
+      {asOfDate && (
+        <div style={{ fontSize: 11, color: "#8a93a6", marginTop: 6 }}>
+          As of {asOfDate} · FIFO approximation (invoices aged against total credits per party, oldest first)
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Party-wise outstanding table
+// ---------------------------------------------------------------------------
+function PartyOutstandingTable({ parties, partyCount }) {
+  if (!parties || parties.length === 0) {
+    return <PlaceholderCard message="No party has an outstanding balance for the selected financial year." />;
+  }
+  return (
+    <div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Party</th>
+              <th>Group</th>
+              <th>Outstanding</th>
+              <th>Oldest open (days)</th>
+              <th>Open invoices</th>
+            </tr>
+          </thead>
+          <tbody>
+            {parties.map((p, i) => (
+              <tr key={p.name}>
+                <td>{i + 1}</td>
+                <td><span className="strong">{p.name}</span></td>
+                <td style={{ fontSize: 12, color: "#5d6678" }}>{p.group || "-"}</td>
+                <td><span className="money">{bigMoney(p.outstanding)}</span></td>
+                <td style={{ color: (p.oldestAgeDays || 0) > 90 ? "#ef4444" : "inherit" }}>
+                  {p.oldestAgeDays ?? "-"}
+                </td>
+                <td>{p.openInvoiceCount ?? "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {partyCount > parties.length && (
+        <div style={{ fontSize: 12, color: "#8a93a6", marginTop: 6 }}>
+          Showing top {parties.length} of {partyCount} parties with an outstanding balance.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Top opening debtors list
 // ---------------------------------------------------------------------------
 function OpeningDebtorsList({ debtors }) {
@@ -280,6 +351,10 @@ export function ReceivablesView({ fy, onFy }) {
   const outstandingByFy    = receivables?.outstandingByFy    || [];
   const totalOutstanding   = receivables?.totalOutstanding   || 0;
   const partyWiseAvailable = receivables?.partyWiseAvailable || false;
+  const topDebtors         = receivables?.topDebtors         || [];
+  const partyCount         = receivables?.partyCount         || 0;
+  const agingBuckets       = receivables?.agingBuckets       || null;
+  const agingAsOfDate      = receivables?.agingAsOfDate      || null;
 
   const curDso  = kpis.dso?.value;
   const curRate = kpis.collectionRate?.value;
@@ -335,14 +410,14 @@ export function ReceivablesView({ fy, onFy }) {
                 : null}
               deltaTone={kpis.dso?.prev == null || curDso == null ? "neu"
                 : curDso <= kpis.dso.prev ? "up" : "dn"}
-              context="Business-level approximation"
+              context="Party-level outstanding / net billed per day"
             />
             <KpiCard
               label={`Collection Rate (${shortFy(completeFy)})`}
               value={fmtPct(completeFyRate ?? curRate)}
               delta={completeFy !== currentFy ? "Complete FY — actual" : null}
               deltaTone={(completeFyRate ?? curRate) >= 85 ? "up" : (completeFyRate ?? curRate) >= 70 ? "neu" : "dn"}
-              context="Business-level: receipts / net sales"
+              context="Party-allocated receipts / net billed"
             />
             <KpiCard
               label="Opening Balance"
@@ -361,7 +436,7 @@ export function ReceivablesView({ fy, onFy }) {
                 : null}
               deltaTone={kpis.collections?.prev == null ? "neu"
                 : (kpis.collections?.value || 0) >= kpis.collections.prev ? "up" : "dn"}
-              context="From receipt register (bank-level)"
+              context="Receipts allocated to debtor parties via voucher contra"
             />
             <KpiCard
               label={`Sales Billed (${shortFy(currentFy)})`}
@@ -403,7 +478,7 @@ export function ReceivablesView({ fy, onFy }) {
               title="Aging Buckets"
               sub="Outstanding by age (0-30, 31-60, 61-90, 90+ days)"
             >
-              <PlaceholderCard message="Aging needs invoice-level settlement data — not available from current export. Export the outstanding ledger report from Busy (ledger-wise, with due dates) to enable aging analysis." />
+              <AgingBucketsChart buckets={agingBuckets} asOfDate={agingAsOfDate} />
             </Card>
             <Card
               title="Outstanding by FY"
@@ -417,13 +492,13 @@ export function ReceivablesView({ fy, onFy }) {
           <div className="ceo-grid2">
             <Card
               title="DSO Trend — 3-year"
-              sub="Days Sales Outstanding (business-level approximation)"
+              sub="Days Sales Outstanding, from party-level outstanding"
             >
               <DsoTrendChart dsoByFy={dsoByFy} />
             </Card>
             <Card
               title="Collection Rate — 3-year"
-              sub="Business-level: receipts as % of net sales billed"
+              sub="Party-allocated receipts as % of net billed"
             >
               <CollRate3YrChart collectionRateByFy={collectionRateByFy} />
             </Card>
@@ -439,10 +514,12 @@ export function ReceivablesView({ fy, onFy }) {
             </Card>
             <Card
               title="Party-wise Outstanding"
-              sub="Settlement tracking per party"
+              sub={`Top parties by outstanding as of ${shortFy(currentFy)}`}
             >
-              {partyWiseAvailable ? null : (
-                <PlaceholderCard message="Party-wise collection cannot be derived from current data. Receipt vouchers are booked against bank account names (SBI SALAR, Cash, ICICI), not party names. To get party-wise settlement, export the ledger-wise receipt report from Busy and load it as an additional tab." />
+              {partyWiseAvailable ? (
+                <PartyOutstandingTable parties={topDebtors} partyCount={partyCount} />
+              ) : (
+                <PlaceholderCard message="Party-wise collection cannot be derived from current data." />
               )}
             </Card>
           </div>

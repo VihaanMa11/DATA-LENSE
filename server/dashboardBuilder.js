@@ -421,6 +421,14 @@ function buildDashboardFromSources(files, sourceType) {
       openingCr: asNumber(row["Opening Bal. (Cr)"]),
       state: cleanText(row.State),
       station: cleanText(row.Station),
+      // The Account Master export repeats the full roster once per financial year
+      // (a "block" per FY), so the same account name can appear up to 3x with a
+      // different Group Name each time (Busy reclassifies parties into zone groups
+      // over time) but only the very first block carries a real opening balance —
+      // later blocks leave Opening Bal. blank. Keep the FY tag so downstream
+      // builders can pick the earliest block for opening balance and the latest
+      // block for the party's current group, instead of guessing from row order.
+      fy: normalizeFy(row["Financial Year"]),
     })),
   };
 }

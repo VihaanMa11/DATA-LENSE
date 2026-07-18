@@ -84,8 +84,9 @@ function SlowMoversChart({ rows }) {
     if (!rows?.length) return { options: null, series: [] };
     const opts = {
       chart: { type: "bar", toolbar: { show: false }, background: "transparent", fontFamily: "Inter, sans-serif" },
-      plotOptions: { bar: { horizontal: true, borderRadius: 3, barHeight: "62%" } },
-      colors: ["#e34948"], dataLabels: { enabled: true, style: { fontSize: "10px", colors: ["#fff"] } },
+      plotOptions: { bar: { horizontal: true, borderRadius: 3, barHeight: "62%", distributed: true } },
+      colors: rows.map((r) => (r.isOthers ? "#9aa4b8" : "#e34948")),
+      dataLabels: { enabled: true, style: { fontSize: "10px", colors: ["#fff"] } },
       legend: { show: false }, grid: { borderColor: "#e3e8f0", strokeDashArray: 4 },
       xaxis: { categories: rows.map((r) => r.group), labels: { style: { colors: "#5d6678", fontSize: "9px" } } },
       yaxis: { labels: { style: { colors: "#5d6678", fontSize: "9px" } } },

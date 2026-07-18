@@ -16,6 +16,25 @@ test("expenseCategory classifies by name", () => {
   assert.equal(expenseCategory("Bank Interest Paid"), "Finance");
 });
 
+// Item 7: real gaps found against the actual MLH chart of accounts — named factory
+// staff and statutory payroll contributions were falling into "Other" instead of
+// "Salary"; clearly administrative costs were falling into "Other" instead of "Admin".
+test("expenseCategory: statutory payroll and named staff accounts map to Salary", () => {
+  assert.equal(expenseCategory("EPF PAID -ER (EMPLOYER)"), "Salary");
+  assert.equal(expenseCategory("ESIC PAID -ER (EMPLOYER)"), "Salary");
+  assert.equal(expenseCategory("GOPAL DAS -FACTORY EMPLOYEE"), "Salary");
+  assert.equal(expenseCategory("IQBAL HOSSAIN-FACTORY STAF"), "Salary"); // source typo, missing final F
+});
+
+test("expenseCategory: administrative/overhead accounts map to Admin, not Other", () => {
+  assert.equal(expenseCategory("Accounting Charges"), "Admin");
+  assert.equal(expenseCategory("FACTORY ADMINISTRATION EXPENSES"), "Admin");
+  assert.equal(expenseCategory("Telephone Expenses"), "Admin");
+  assert.equal(expenseCategory("Repairng And Maintainance Charges"), "Admin"); // source typos
+  assert.equal(expenseCategory("Trade Licenece"), "Admin"); // spelling variant of "License"
+  assert.equal(expenseCategory("JOBWORK CHARGES"), "Admin");
+});
+
 function exp(fy, month, account, group, debit) {
   return { tx: "Journal", fy, month, account, accountGroup: group, debit, credit: 0, isHeader: true };
 }
@@ -81,4 +100,50 @@ test("expenseAnalysis: empty input safe", () => {
   const r = buildExpenseAnalysis({ itemFacts: [], ledgerFacts: [] }, {});
   assert.equal(r.table.length, 0);
   assert.equal(r.kpis.totalExpenses.cur, 0);
+});
+
+// ---------------------------------------------------------------------------
+// Item 7: category mix cleanup — tiny categories collapse into Other (except
+// Suspense, always shown), the mix still sums to total expense, and the underlying
+// per-category KPIs (used by the P&L bridge) stay accurate regardless of collapsing.
+// ---------------------------------------------------------------------------
+function mixFixture() {
+  const l = [], it = [];
+  const G = "Expenses (Indirect/Admn.)";
+  [[FY1, M1], [FY2, M2]].forEach(([fy, months]) => {
+    months.forEach((m) => { it.push(saleH(fy, m, 2500000)); it.push(purH(fy, m, 2250000)); });
+  });
+  l.push(exp(FY2, "2025-06", "Salary", "SUNDRY CREDITORS AGAINST SALARY", 2400000));
+  l.push(exp(FY2, "2025-06", "GODOWN RENT-1", G, 300000));
+  // Utilities and Finance are each well under the 3% materiality threshold of the
+  // ~3.3M total expense here -> must collapse into Other in categoryMix.
+  l.push(exp(FY2, "2025-06", "Electricity Charges", G, 20000));
+  l.push(exp(FY2, "2025-06", "Bank Interest Paid", G, 15000));
+  return { itemFacts: it, ledgerFacts: l };
+}
+
+test("expenseAnalysis: tiny categories collapse into Other in categoryMix", () => {
+  const r = buildExpenseAnalysis(mixFixture(), { fy: FY2 });
+  assert.ok(!r.categoryMix.some((c) => c.category === "Utilities"), "Utilities is <3% and must be folded into Other");
+  assert.ok(!r.categoryMix.some((c) => c.category === "Finance"), "Finance is <3% and must be folded into Other");
+  const other = r.categoryMix.find((c) => c.category === "Other");
+  assert.ok(other, "collapsed Other bucket must exist");
+  assert.equal(other.value, 35000); // 20000 electricity + 15000 interest
+  assert.deepEqual([...other.collapsedFrom].sort(), ["Finance", "Utilities"]);
+});
+
+test("expenseAnalysis: categoryMix still sums to total expense after collapsing", () => {
+  const r = buildExpenseAnalysis(mixFixture(), { fy: FY2 });
+  const sum = r.categoryMix.reduce((s, c) => s + c.value, 0);
+  assert.equal(sum, r.kpis.totalExpenses.cur);
+});
+
+test("expenseAnalysis: collapsing categoryMix does not distort the P&L bridge's own line items", () => {
+  const r = buildExpenseAnalysis(mixFixture(), { fy: FY2 });
+  const rentLine = r.bridge.find((b) => b.label === "Less: Rent");
+  const utilLine = r.bridge.find((b) => b.label === "Less: Utilities");
+  // The bridge must still show Rent and Utilities as their own true line items even
+  // though the categoryMix chart folded Utilities into Other for display.
+  assert.equal(rentLine.value, -300000);
+  assert.equal(utilLine.value, -20000);
 });

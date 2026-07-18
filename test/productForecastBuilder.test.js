@@ -75,3 +75,19 @@ test("productForecast: empty input safe", () => {
   assert.equal(r.table.length, 0);
   assert.equal(r.kpis.productsTracked.value, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Partial-FY equal-window fix (item 3): FY3 has only April loaded for KID BALANCED
+// (qty 10, amount 12000). The OLD code divided YTD by a hardcoded 12 regardless of
+// how much of the year had happened, understating the flat run-rate ~12x for a
+// 1-month-old FY.
+// ---------------------------------------------------------------------------
+test("productForecast: flat run-rate divides by months actually loaded, not a hardcoded 12", () => {
+  const r = buildProductForecast(fixture(), { fy: FY3 });
+  assert.equal(r.currentFy, FY3);
+  const kid = r.table.find((t) => t.sku === "KID BALANCED");
+  assert.ok(kid, "KID BALANCED present in FY3");
+  // Only April loaded: ytd=12000, loadedMonths=1 -> flat run-rate should be ~12000,
+  // not 12000/12=1000 (the old hardcoded-12 bug).
+  assert.equal(kid.flat, 12000);
+});

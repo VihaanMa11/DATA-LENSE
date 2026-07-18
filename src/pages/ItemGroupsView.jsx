@@ -135,7 +135,7 @@ function YoYChart({ yoy }) {
     const opts = {
       chart: { type: "bar", toolbar: { show: false }, background: "transparent", fontFamily: "Inter, sans-serif" },
       plotOptions: { bar: { horizontal: true, borderRadius: 3, barHeight: "60%", distributed: true } },
-      colors: yoy.map((r) => (r.pct >= 0 ? "#12b76a" : "#ef4444")),
+      colors: yoy.map((r) => (r.isOthers ? "#9aa4b8" : r.pct >= 0 ? "#12b76a" : "#ef4444")),
       dataLabels: { enabled: true, formatter: (v) => `${v >= 0 ? "+" : ""}${v}%`, style: { fontSize: "10px", colors: ["#33384a"] }, offsetX: 18 },
       legend: { show: false },
       grid: { borderColor: "#e3e8f0", strokeDashArray: 4 },

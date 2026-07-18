@@ -53,7 +53,7 @@ function MainChart({ mc }) {
 function SeasonalityChart({ data }) {
   const { options, series } = useMemo(() => {
     if (!data?.values?.length) return { options: null, series: [] };
-    const colors = data.values.map((v) => (v >= 120 ? "#1baf7a" : v >= 80 ? "#eda100" : "#e34948"));
+    const colors = data.values.map((v) => (v == null ? "#d6deea" : v >= 120 ? "#1baf7a" : v >= 80 ? "#eda100" : "#e34948"));
     const opts = {
       chart: { type: "bar", toolbar: { show: false }, background: "transparent", fontFamily: "Inter, sans-serif" },
       plotOptions: { bar: { columnWidth: "65%", borderRadius: 2, distributed: true } }, colors,

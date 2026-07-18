@@ -129,9 +129,13 @@ export function buildVendorPayables(dashData, options = {}) {
   const purchaseMoM = { months: APR_TO_MAR, values: momPur.map(Math.round) };
 
   // ---- Concentration 3yr shift ----
+  // Uses the FULL vendor universe (allVendors) per FY, not the currentFy/prevFy-scoped
+  // `ranked` list — a vendor active only in an earlier or later FY than the current
+  // selection must still count toward that year's own total, or that year's totals
+  // and "Others" share would silently understate reality.
   const concentration = fyList.map((fy) => {
-    const tot = ranked.reduce((s, v) => s + Math.max(0, netIn(v, fy)), 0);
-    const rows = ranked.map((v) => ({ vendor: shortName(v), pct: tot > 0 ? round1((netIn(v, fy) / tot) * 100) : 0 }))
+    const tot = [...allVendors].reduce((s, v) => s + Math.max(0, netIn(v, fy)), 0);
+    const rows = [...allVendors].map((v) => ({ vendor: shortName(v), pct: tot > 0 ? round1((Math.max(0, netIn(v, fy)) / tot) * 100) : 0 }))
       .filter((r) => r.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 3);
     const othersPct = round1(100 - rows.reduce((s, r) => s + r.pct, 0));
     return { fy, rows, othersPct: Math.max(0, othersPct) };
@@ -145,14 +149,19 @@ export function buildVendorPayables(dashData, options = {}) {
     .map((t) => ({ type: t, value: Math.round(typeMap.get(t)), pct: curTotal > 0 ? round1((typeMap.get(t) / curTotal) * 100) : 0 }));
 
   // ---- Purchase trend top vendors (grouped bars, 3yr) ----
+  // Anchored to currentFy's top 3 (consistent with the rest of the cockpit), but each
+  // year's bars and the "Others" total are computed from the FULL vendor universe for
+  // that year and floored at 0 per vendor — a year where purchase returns exceeded
+  // fresh purchases for a top vendor previously showed as a negative bar instead of 0,
+  // with the shortfall silently absorbed into (or inflating) "Others".
   const top3 = ranked.slice(0, 3);
   const purchaseTrend = {
     vendors: [...top3.map(shortName), "Others"],
     series: fyList.map((fy) => {
-      const total = ranked.reduce((s, v) => s + Math.max(0, netIn(v, fy)), 0);
-      const topVals = top3.map((v) => Math.round(netIn(v, fy)));
-      const others = Math.round(total - topVals.reduce((s, x) => s + x, 0));
-      return { name: fy, values: [...topVals, Math.max(0, others)] };
+      const total = [...allVendors].reduce((s, v) => s + Math.max(0, netIn(v, fy)), 0);
+      const topVals = top3.map((v) => Math.round(Math.max(0, netIn(v, fy))));
+      const others = Math.max(0, Math.round(total - topVals.reduce((s, x) => s + x, 0)));
+      return { name: fy, values: [...topVals, others] };
     }),
   };
 

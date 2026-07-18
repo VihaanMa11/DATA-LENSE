@@ -275,10 +275,13 @@ const SEG_TAG_STYLE = {
   Recovered: { bg: "#e7f8ef", color: "#0e9456" },
 };
 
-function SegTag({ segment }) {
+function SegTag({ segment, atRiskReasons }) {
   const s = SEG_TAG_STYLE[segment] || { bg: "#f4f7fb", color: "#5d6678" };
+  const title = segment === "AtRisk" && atRiskReasons
+    ? `No order in ${atRiskReasons.recencyDays} days, ${atRiskReasons.declinePct}% down vs its own trailing run rate`
+    : undefined;
   return (
-    <span className="ca-seg-tag" style={{ background: s.bg, color: s.color }}>
+    <span className="ca-seg-tag" style={{ background: s.bg, color: s.color }} title={title}>
       {segment}
     </span>
   );
@@ -332,7 +335,7 @@ function DetailTable({ rows, fyList, currentFy }) {
                 <td>{r.billsPerYr}</td>
                 <td>{r.avgBill > 0 ? <span className="money">{money(r.avgBill)}</span> : "-"}</td>
                 <td style={{ whiteSpace: "nowrap", fontSize: 12 }}>{r.lastOrder || "-"}</td>
-                <td><SegTag segment={r.segment} /></td>
+                <td><SegTag segment={r.segment} atRiskReasons={r.atRiskReasons} /></td>
               </tr>
             );
           })}

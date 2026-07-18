@@ -260,14 +260,28 @@ export function buildItemGroups(dashData, options = {}) {
     })
     .sort((a, b) => b.h2Pct - a.h2Pct);
 
-  // ---- YoY (current vs prev, sorted desc) ----
-  const yoy = prevFy
-    ? rankedCurrent
-        .filter((g) => netIn(g, prevFy) > 0 || netIn(g, currentFy) > 0)
-        .map((g) => ({ group: g, pct: netIn(g, prevFy) > 0 ? deltaPct(netIn(g, currentFy), netIn(g, prevFy)) : 0 }))
-        .filter((r) => netIn(r.group, currentFy) >= materialThreshold || netIn(r.group, prevFy) >= materialThreshold)
-        .sort((a, b) => b.pct - a.pct)
+  // ---- YoY (current vs prev) ----
+  // Sorted by MAGNITUDE (the larger of the two years' revenue), not by pct — a tiny
+  // group swinging +500% shouldn't outrank the business's actual biggest movers.
+  // Groups with no prior-year revenue have no defined "% change" (they're new, not a
+  // literal 0%) and are excluded from this chart rather than shown as a fake 0% bar.
+  // The long tail beyond MAX_YOY_GROUPS is folded into a single "Others" bar computed
+  // from the pooled revenue (a real weighted % change, not an average of percentages).
+  const MAX_YOY_GROUPS = 10;
+  const yoyCandidates = prevFy
+    ? [...allGroups]
+        .map((g) => ({ group: g, cur: netIn(g, currentFy), prev: netIn(g, prevFy) }))
+        .filter((r) => r.prev > 0 && (r.cur >= materialThreshold || r.prev >= materialThreshold))
+        .sort((a, b) => Math.max(b.cur, b.prev) - Math.max(a.cur, a.prev))
     : [];
+  const yoyHead = yoyCandidates.slice(0, MAX_YOY_GROUPS);
+  const yoyTail = yoyCandidates.slice(MAX_YOY_GROUPS);
+  const yoy = yoyHead.map((r) => ({ group: r.group, pct: deltaPct(r.cur, r.prev) }));
+  if (yoyTail.length > 0) {
+    const tailCur = yoyTail.reduce((s, r) => s + r.cur, 0);
+    const tailPrev = yoyTail.reduce((s, r) => s + r.prev, 0);
+    yoy.push({ group: `Others (${yoyTail.length} groups)`, pct: tailPrev > 0 ? deltaPct(tailCur, tailPrev) : 0, isOthers: true });
+  }
 
   // ---- Price trend (top 6 by current net) 3-yr ----
   const priceTrend = {

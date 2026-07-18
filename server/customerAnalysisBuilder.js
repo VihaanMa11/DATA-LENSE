@@ -9,6 +9,31 @@ const num = (v) => Number(v) || 0;
 const round1 = (v) => Math.round(v * 10) / 10;
 const roundInt = (v) => Math.round(v);
 
+// At-risk thresholds — kept as named constants so they can be tuned without hunting
+// through the classifier logic.
+const AT_RISK_RECENCY_DAYS = 90;   // no purchase within this many days
+const AT_RISK_DECLINE_PCT = 30;    // material drop vs the customer's own trailing run rate
+
+function daysBetween(fromIso, toIso) {
+  const from = Date.parse(fromIso);
+  const to = Date.parse(toIso);
+  if (Number.isNaN(from) || Number.isNaN(to)) return null;
+  return Math.max(0, Math.round((to - from) / 86400000));
+}
+
+// Latest transaction date within `fy` (business-wide, Cash excluded) — the reference
+// point recency is measured against, so the at-risk check stays aligned to whichever FY
+// is selected instead of always using "today".
+function computeAsOfDate(itemFacts, fy) {
+  let asOf = null;
+  for (const r of itemFacts) {
+    if (r.fy !== fy) continue;
+    if (String(r.party || "").toLowerCase() === "cash") continue;
+    if (r.date && (!asOf || r.date > asOf)) asOf = r.date;
+  }
+  return asOf;
+}
+
 // ---------------------------------------------------------------------------
 // FY helpers (same pattern as ceoBuilder.js)
 // ---------------------------------------------------------------------------
@@ -103,9 +128,50 @@ function aggregateCustomersFy(itemFacts, fy) {
 }
 
 // ---------------------------------------------------------------------------
+// At-risk signal — recency (no purchase in AT_RISK_RECENCY_DAYS) AND a material
+// decline (>=AT_RISK_DECLINE_PCT%) vs the customer's own trailing run rate, aligned
+// to whichever FY is currently selected (not always the last FY in the loaded window).
+//
+// The decline side compares NET SALES PER ACTIVE MONTH (a run rate), not raw FY
+// totals, specifically so a partial currentFy is never compared against a full prior
+// year in absolute terms — the same "equal windows" fix applied to the forecast
+// builders elsewhere in this pass.
+// ---------------------------------------------------------------------------
+function computeAtRiskSignal(party, fyDataMap, fys, currentFy, asOfDate) {
+  const curData = fyDataMap.get(currentFy)?.get(party);
+  if (!curData) return { recencyDays: null, declinePct: null, recencyFlag: false, declineFlag: false, materialAtRisk: false };
+
+  let lastOrder = null;
+  for (const fy of fys) {
+    if (fy > currentFy) continue;
+    const d = fyDataMap.get(fy)?.get(party);
+    if (d?.lastOrderDate && (!lastOrder || d.lastOrderDate > lastOrder)) lastOrder = d.lastOrderDate;
+  }
+  const recencyDays = lastOrder && asOfDate ? daysBetween(lastOrder, asOfDate) : null;
+  const recencyFlag = recencyDays != null && recencyDays > AT_RISK_RECENCY_DAYS;
+
+  const curActiveMonths = curData.monthsActive?.size || 0;
+  const curAvg = curActiveMonths > 0 ? curData.netSales / curActiveMonths : 0;
+
+  let trailingNet = 0, trailingMonths = 0;
+  for (const fy of fys) {
+    if (fy >= currentFy) continue;
+    const d = fyDataMap.get(fy)?.get(party);
+    if (!d) continue;
+    trailingNet += d.netSales;
+    trailingMonths += d.monthsActive?.size || 0;
+  }
+  const trailingAvg = trailingMonths > 0 ? trailingNet / trailingMonths : 0;
+  const declinePct = trailingAvg > 0 ? roundInt(((trailingAvg - curAvg) / trailingAvg) * 100) : null;
+  const declineFlag = declinePct != null && declinePct >= AT_RISK_DECLINE_PCT;
+
+  return { recencyDays, declinePct, recencyFlag, declineFlag, materialAtRisk: recencyFlag && declineFlag };
+}
+
+// ---------------------------------------------------------------------------
 // Segment classification (3-FY context)
 // ---------------------------------------------------------------------------
-function classifySegment(party, fyDataMap, fys) {
+function classifySegment(party, fyDataMap, fys, currentFy, prevFy, asOfDate) {
   const [firstFy, midFy, lastFy] = fys.length >= 3
     ? [fys[0], fys[1], fys[2]]
     : fys.length === 2
@@ -136,13 +202,15 @@ function classifySegment(party, fyDataMap, fys) {
     if (growing) return "Champion";
   }
 
-  // AtRisk: active in currentFy but declining YoY vs previous FY
-  const curFy = fys[fys.length - 1];
-  const prevFy = fys.length >= 2 ? fys[fys.length - 2] : null;
-  if (activeInFy(curFy) && prevFy) {
-    const cur = netInFy(curFy);
-    const prev = netInFy(prevFy);
-    if (cur < prev && prev > 0) return "AtRisk";
+  // AtRisk: aligned to the selected currentFy (was previously hardcoded to the last FY
+  // in the loaded window, so the FY toggle had no effect on this classification).
+  // Brand-new customers (their first-ever activity IS currentFy) are excluded — they
+  // have no trailing baseline to decline from.
+  const firstActiveFy = fys.find((fy) => activeInFy(fy));
+  const isBrandNew = firstActiveFy === currentFy;
+  if (!isBrandNew && prevFy && activeInFy(currentFy)) {
+    const { materialAtRisk } = computeAtRiskSignal(party, fyDataMap, fys, currentFy, asOfDate);
+    if (materialAtRisk) return "AtRisk";
   }
 
   // Loyal: active in 2+ FYs, not Champion or AtRisk
@@ -191,6 +259,10 @@ export function buildCustomerAnalysis(dashData, options = {}) {
   // For waterfall / cohort we always use the full sorted list
   const fys = fyList; // [first, mid?, last]
   const midFy = fys.length >= 3 ? fys[1] : null;
+
+  // Reference date for the at-risk recency check — latest transaction within currentFy,
+  // so the check stays aligned to whichever FY is selected instead of "today".
+  const asOfDate = computeAsOfDate(itemFacts, currentFy);
 
   // ---- Per-FY customer data ----
   const fyDataMap = new Map(); // fy -> Map<party, data>
@@ -420,7 +492,7 @@ export function buildCustomerAnalysis(dashData, options = {}) {
   // ---- Segments ----
   const segCounts = { Champion: 0, Loyal: 0, AtRisk: 0, Lost: 0, New: 0, Recovered: 0 };
   for (const party of allParties) {
-    const seg = classifySegment(party, fyDataMap, fys);
+    const seg = classifySegment(party, fyDataMap, fys, currentFy, prevFy, asOfDate);
     segCounts[seg] = (segCounts[seg] || 0) + 1;
   }
 
@@ -574,7 +646,11 @@ export function buildCustomerAnalysis(dashData, options = {}) {
     }
 
     const trend = fyList.map((fy) => perFy[fy] || 0);
-    const segment = classifySegment(party, fyDataMap, fys);
+    const segment = classifySegment(party, fyDataMap, fys, currentFy, prevFy, asOfDate);
+    // Explain the AtRisk flag (or near-miss) with its two component reasons, regardless
+    // of which segment ultimately won precedence (e.g. a "Lost" customer's numbers here
+    // still show why they'd also have tripped the at-risk signal).
+    const atRiskSignal = prevFy ? computeAtRiskSignal(party, fyDataMap, fys, currentFy, asOfDate) : null;
 
     table.push({
       name: party,
@@ -587,6 +663,9 @@ export function buildCustomerAnalysis(dashData, options = {}) {
       lastOrder,
       trend,
       segment,
+      atRiskReasons: atRiskSignal
+        ? { recencyDays: atRiskSignal.recencyDays, declinePct: atRiskSignal.declinePct, recencyFlag: atRiskSignal.recencyFlag, declineFlag: atRiskSignal.declineFlag }
+        : null,
     });
   }
 

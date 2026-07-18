@@ -50,6 +50,22 @@ function monthlyNetSales(itemFacts, fy) {
   return arr;
 }
 
+// Number of distinct calendar months of `fy` that actually have data loaded, in
+// fiscal-month order (0=Apr..11=Mar). Used so a partial FY is never compared against
+// a full prior year in absolute terms — every comparison uses the same window width.
+function loadedMonthCount(itemFacts, fy) {
+  const months = fiscalYearMonths(fy);
+  const idx = new Map(months.map((m, i) => [m, i]));
+  const seen = new Set();
+  for (const r of itemFacts) {
+    if (r.fy !== fy || !r.isHeader) continue;
+    if (String(r.party || "").toLowerCase() === "cash") continue;
+    const mi = idx.get(r.month);
+    if (mi !== undefined) seen.add(mi);
+  }
+  return seen.size;
+}
+
 /**
  * @param {object} dashData - { itemFacts, ledgerFacts }
  * @param {object} [options] - { fy?: string }
@@ -73,35 +89,52 @@ export function buildSalesForecast(dashData, options = {}) {
 
   const curTotal = curMonthly.reduce((s, v) => s + v, 0);
   const prevTotal = prevMonthly.reduce((s, v) => s + v, 0);
-  const yoyGrowth = prevTotal > 0 ? (curTotal - prevTotal) / prevTotal : 0;
 
-  // ---- Seasonality-aware forecast: next 3 months (Apr, May, Jun of next FY) ----
+  // Growth rate must compare EQUAL windows: if currentFy is partial (only the first
+  // `loadedMonths` months have data), compare against the SAME first N months of the
+  // prior FY — never a partial-year total against a full-year total, which previously
+  // made growth (and therefore the whole forecast) collapse toward -100% purely as an
+  // artifact of how much of the current FY had been loaded so far.
+  const loadedMonths = Math.max(1, loadedMonthCount(itemFacts, currentFy));
+  const prevEqualTotal = prevMonthly.slice(0, loadedMonths).reduce((s, v) => s + v, 0);
+  const yoyGrowth = prevEqualTotal > 0 ? (curTotal - prevEqualTotal) / prevEqualTotal : 0;
+
+  // ---- Seasonality-aware forecast, all 12 months of forecastFy ----
+  // For months currentFy has already reached, scale that same calendar month forward.
+  // For months currentFy hasn't reached yet, fall back to the prior FY's same month
+  // (the standard same-store approach) scaled by the same equal-window growth rate —
+  // otherwise those months would have no base at all for a partial currentFy.
   const forecastFy = nextFyLabel(currentFy);
-  const forecast = [0, 1, 2].map((mi) => {
-    const base = curMonthly[mi];               // same calendar month, current year
-    const val = base * (1 + yoyGrowth);
+  const forecastAll12 = APR_TO_MAR.map((_, mi) => {
+    const base = mi < loadedMonths ? curMonthly[mi] : prevMonthly[mi];
+    const val = Math.max(0, base * (1 + yoyGrowth));
     return {
       month: APR_TO_MAR[mi],
       value: Math.round(val),
       curYearSame: Math.round(base),
-      low: Math.round(val * 0.85),
+      low: Math.round(Math.max(0, val * 0.85)),
       high: Math.round(val * 1.15),
       impliedYoY: base > 0 ? deltaPct(val, base) : null,
     };
   });
+  // The displayed 3-month forecast always corresponds to currentFy's own first 3
+  // months, which exist regardless of how partial currentFy is (the forecast targets
+  // Apr/May/Jun of forecastFy, i.e. months 0-2 of currentFy).
+  const forecast = forecastAll12.slice(0, 3);
   const forecast3Total = forecast.reduce((s, f) => s + f.value, 0);
   const cur3Total = curMonthly.slice(0, 3).reduce((s, v) => s + v, 0);
 
-  // ---- Best / worst month ----
+  // ---- Best / worst month (only months actually loaded — an unreached month in a
+  // partial FY is zero because it hasn't happened yet, not because it's a real low) ----
   let best = { i: 0, v: -Infinity }, worst = { i: 0, v: Infinity };
-  curMonthly.forEach((v, i) => { if (v > best.v) best = { i, v }; if (v < worst.v) worst = { i, v }; });
+  curMonthly.slice(0, loadedMonths).forEach((v, i) => { if (v > best.v) best = { i, v }; if (v < worst.v) worst = { i, v }; });
 
   // ---- H1 / H2 ----
   const h1 = curMonthly.slice(0, 6).reduce((s, v) => s + v, 0);
   const h2 = curMonthly.slice(6).reduce((s, v) => s + v, 0);
 
   const kpis = {
-    totalActual: { cur: Math.round(curTotal), fy: currentFy, yoyPct: prevTotal > 0 ? deltaPct(curTotal, prevTotal) : null, prev: Math.round(prevTotal) },
+    totalActual: { cur: Math.round(curTotal), fy: currentFy, yoyPct: prevEqualTotal > 0 ? deltaPct(curTotal, prevEqualTotal) : null, prev: Math.round(prevTotal), prevEqualWindow: Math.round(prevEqualTotal), equalWindowMonths: loadedMonths },
     nextMonthForecast: { value: forecast[0]?.value || 0, month: forecast[0]?.month, vsCur: forecast[0]?.curYearSame || 0, impliedYoY: forecast[0]?.impliedYoY },
     bestMonth: { month: APR_TO_MAR[best.i], value: Math.round(best.v) },
     worstMonth: { month: APR_TO_MAR[worst.i], value: Math.round(worst.v), pctBelowBest: best.v > 0 ? Math.round((1 - worst.v / best.v) * 100) : 0 },
@@ -113,8 +146,9 @@ export function buildSalesForecast(dashData, options = {}) {
   const alerts = [];
   if (worst.v > 0) alerts.push({ tone: "red", title: `${APR_TO_MAR[worst.i]} ${bigMoney(worst.v)} is the seasonal low`, body: `${kpis.worstMonth.pctBelowBest}% below the peak. This trough repeats yearly. Do not plan major payments in ${APR_TO_MAR[worst.i]}, cash will be tight.` });
   alerts.push({ tone: "green", title: `${APR_TO_MAR[best.i]} is the peak month at ${bigMoney(best.v)}`, body: `Stock and staff up before ${APR_TO_MAR[best.i]}. ${prevFy ? `Prior year same month ${bigMoney(prevMonthly[best.i])}.` : ""}` });
-  alerts.push({ tone: "blue", title: `Forecast is seasonality-aware`, body: `Each forward month scales the same calendar month of ${shortFy(currentFy)} by the ${Math.round(yoyGrowth * 100)}% YoY growth rate, so the ${APR_TO_MAR[worst.i]} trough is preserved instead of a flat trend.` });
-  if (kpis.totalActual.yoyPct != null) alerts.push({ tone: kpis.totalActual.yoyPct >= 0 ? "green" : "amber", title: `Full year ${kpis.totalActual.yoyPct >= 0 ? "up" : "down"} ${Math.abs(kpis.totalActual.yoyPct)}% vs ${shortFy(prevFy)}`, body: `${bigMoney(curTotal)} vs ${bigMoney(prevTotal)}. At this rate ${forecastFy} projects near ${bigMoney(curTotal * (1 + yoyGrowth))}.` });
+  alerts.push({ tone: "blue", title: `Forecast is seasonality-aware`, body: `Each forward month scales the same calendar month of ${shortFy(currentFy)} by the ${Math.round(yoyGrowth * 100)}% YoY growth rate (compared over the same ${loadedMonths}-month window on both sides), so the ${APR_TO_MAR[worst.i]} trough is preserved instead of a flat trend.` });
+  if (loadedMonths < 12) alerts.push({ tone: "blue", title: `${shortFy(currentFy)} is partial (${loadedMonths} of 12 months loaded)`, body: `Growth rate and the annual projection compare the same ${loadedMonths} months on both sides — not a partial-year total against a full prior year.` });
+  if (kpis.totalActual.yoyPct != null) alerts.push({ tone: kpis.totalActual.yoyPct >= 0 ? "green" : "amber", title: `${loadedMonths < 12 ? `First ${loadedMonths} months` : "Full year"} ${kpis.totalActual.yoyPct >= 0 ? "up" : "down"} ${Math.abs(kpis.totalActual.yoyPct)}% vs the same period last year`, body: `${bigMoney(curTotal)} vs ${bigMoney(prevEqualTotal)}. ${forecastFy} projects near ${bigMoney(forecastAll12.reduce((s, f) => s + f.value, 0))}.` });
 
   // ---- Main chart series: current actual (12) + forecast (3 appended) ----
   const labels = [...APR_TO_MAR, ...forecast.map((f) => `+${f.month}`)];
@@ -125,22 +159,23 @@ export function buildSalesForecast(dashData, options = {}) {
   const forecastLow = [...new Array(12).fill(null), ...forecast.map((f) => f.low)];
   const mainChart = { labels, actual: actualLine, prevYear: prevLine, forecast: forecastLine, high: forecastHigh, low: forecastLow, curFy: currentFy, prevFy, forecastFy };
 
-  // ---- Seasonality index ----
-  const avg = curTotal / 12;
-  const seasonality = { months: APR_TO_MAR, values: curMonthly.map((v) => (avg > 0 ? Math.round((v / avg) * 100) : 0)) };
+  // ---- Seasonality index (normalized against the loaded window, not a fixed /12 —
+  // otherwise a partial FY makes every loaded month look artificially far above average) ----
+  const avg = curTotal / loadedMonths;
+  const seasonality = { months: APR_TO_MAR, values: curMonthly.map((v, i) => (i >= loadedMonths ? null : (avg > 0 ? Math.round((v / avg) * 100) : 0))) };
 
-  // ---- YoY same-month ----
-  const yoyMonth = { months: APR_TO_MAR, values: curMonthly.map((v, i) => (prevMonthly[i] > 0 ? deltaPct(v, prevMonthly[i]) : null)) };
+  // ---- YoY same-month (only for months currentFy has actually reached) ----
+  const yoyMonth = { months: APR_TO_MAR, values: curMonthly.map((v, i) => (i < loadedMonths && prevMonthly[i] > 0 ? deltaPct(v, prevMonthly[i]) : null)) };
 
   // ---- FY-next projection range ----
-  // For the forward range, floor the growth at a modest positive rate so the
-  // scenarios stay ordered (a Milon-inflated prior year can make raw YoY negative).
-  const projGrowth = Math.max(0.05, yoyGrowth);
+  // Built by summing the same 12 monthly forecasts used above, so the scenarios are
+  // genuine low/base/high bands of one forecast (and trivially reconcile with it)
+  // instead of an independently-chosen +3%/+7% offset with its own separate growth floor.
   const projection = {
     fy: forecastFy,
-    conservative: Math.round(curTotal * 1.03),
-    base: Math.round(curTotal * (1 + projGrowth)),
-    optimistic: Math.round(curTotal * (1 + projGrowth + 0.07)),
+    conservative: Math.round(forecastAll12.reduce((s, f) => s + f.low, 0)),
+    base: Math.round(forecastAll12.reduce((s, f) => s + f.value, 0)),
+    optimistic: Math.round(forecastAll12.reduce((s, f) => s + f.high, 0)),
   };
 
   // ---- Accuracy check table (forecast months vs current-year same month) ----

@@ -83,3 +83,38 @@ test("productPareto: empty input safe", () => {
   assert.equal(r.table.length, 0);
   assert.equal(r.kpis.totalSkus.count, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Item 5: slow-mover grouping cleanup — capped with an Others bucket instead of a
+// long scatter of 1-count groups, total count still reconciles.
+// ---------------------------------------------------------------------------
+function manySlowGroupsFixture() {
+  const f = [];
+  // 12 distinct item groups, each with exactly one SKU sold once in April FY2 and
+  // then silent (>90 days before the FY's last transaction) -> 12 one-SKU slow groups.
+  for (let i = 0; i < 12; i++) {
+    f.push(sale(FY2, "2025-04", `SKU-${i} MRP-199#`, `GROUP-${i}`, 5, 1000, "2025-04-05"));
+  }
+  // One big active group so the FY has a "current" reference date well past 90 days
+  // from April.
+  ["2025-08", "2025-09", "2025-10", "2025-11", "2025-12"].forEach((m) =>
+    f.push(sale(FY2, m, "ACTIVE MRP-259#", "ACTIVE-GROUP", 50, 20000, `${m}-15`))
+  );
+  return { itemFacts: f, ledgerFacts: [] };
+}
+
+test("productPareto: slow-mover groups are capped with an Others bucket", () => {
+  const r = buildProductPareto(manySlowGroupsFixture(), { fy: FY2 });
+  assert.ok(r.slowMoversByGroup.length <= 9, `expected <=8 groups + Others, got ${r.slowMoversByGroup.length}`);
+  assert.ok(r.slowMoversByGroup.some((g) => g.isOthers), "long tail must be folded into an Others bucket");
+  const total = r.slowMoversByGroup.reduce((s, g) => s + g.count, 0);
+  assert.equal(total, 12, "total slow-mover count must reconcile even after capping");
+});
+
+test("productPareto: documents its Pareto and slow-mover rules", () => {
+  const r = buildProductPareto(fixture(), { fy: FY2 });
+  assert.ok(Array.isArray(r.dataNotes));
+  const combined = r.dataNotes.join(" ").toLowerCase();
+  assert.ok(combined.includes("cumulative"));
+  assert.ok(combined.includes("90"));
+});
