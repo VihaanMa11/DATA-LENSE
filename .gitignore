@@ -25,3 +25,15 @@ excalidraw-diagram-skill/
 .wrangler
 .dev.vars*
 !.dev.vars.example
+
+# Client data / internal handover artifacts — never commit real customer data
+*.xlsx
+*.xls
+*.docx
+!docs/**/*.xlsx
+HANDOVER_*.md
+scratch/
+.superpowers/
+.agents/
+skills-lock.json
+*.jfif

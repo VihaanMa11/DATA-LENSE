@@ -42,7 +42,7 @@ src/
   pages/                CeoView.jsx + analytics pages
   components/           InteractiveCharts.jsx (Bar/Donut/Line), ParetoChart.jsx, ScatterPlot.jsx,
                         chartTheme.js (money/moneyAxis/palette), ui.jsx, ceo/* (KPI, alerts, toggle, yoy)
-test/                   *.test.js (auth, analytics, ceoBuilder, googleSheetsSource, sourceConfig, chartWindow)
+test/                   *.test.js (auth, analytics, ceoBuilder, googleSheetsSource, chartWindow)
 ```
 
 ## 4. Data Pipeline
@@ -110,5 +110,5 @@ test/                   *.test.js (auth, analytics, ceoBuilder, googleSheetsSour
 - Some CEO filter pills (brand/region/salesman) are stubbed pending data wiring.
 
 ## 12. Testing Strategy
-- Pure builders (`analyticsBuilder`, `ceoBuilder`) unit-tested with fixtures (hand-computed expectations) + real-file sanity (`MLH_Master_Data_FY2024-27.xlsx`).
-- Auth, cookie, and source-config parsing unit-tested. Frontend verified via build + manual browser check (no headless browser in CI).
+- Pure builders (`analyticsBuilder`, `ceoBuilder`) unit-tested with fixtures (hand-computed expectations) + sanity-checked against a real client workbook during development.
+- Auth and cookie handling unit-tested. Frontend verified via build + manual browser check (no headless browser in CI).
