@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { exportNodeToPdf } from "../exportPdf.js";
+import { fadeInUp, gsap } from "../motion.js";
 
 // Shared formatting helpers + presentational primitives used across the dashboard
 // and the analytics pages. Kept in one module so App.jsx and pages render identically.
@@ -35,8 +36,14 @@ export function pct(part, total) {
 
 export function Kpi({ title, value, meta, variant = "", icon = "bars", tone = "#1976d2" }) {
   const wave = "M0,48 C18,18 34,18 52,48 C70,78 88,78 106,48 C124,18 142,18 160,48 C178,78 196,78 214,48 C232,18 250,18 268,48";
+  const ref = useRef(null);
+
+  useEffect(() => {
+    fadeInUp(ref.current, { duration: 0.4, y: 10, delay: gsap.utils.random(0, 0.12) });
+  }, []);
+
   return (
-    <div className={`kpi ${variant}`} style={{ "--tone": tone }}>
+    <div className={`kpi ${variant}`} style={{ "--tone": tone }} ref={ref}>
       <div className="kpi-copy">
         <div className={`k-icon ${icon}`} aria-hidden="true" />
         <div className="k-label">{title}</div>
@@ -52,8 +59,14 @@ export function Kpi({ title, value, meta, variant = "", icon = "bars", tone = "#
 }
 
 export function SectionHead({ code, title, sub }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    fadeInUp(ref.current, { duration: 0.35, y: 6 });
+  }, []);
+
   return (
-    <div className="section-head">
+    <div className="section-head" ref={ref}>
       <div className="section-icon">{code}</div>
       <div>
         <div className="section-title">{title}</div>
@@ -67,6 +80,7 @@ export function Card({ title, sub, badge, badgeClass = "", children, expandable 
   const [open, setOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const helpRef = useRef(null);
+  const cardRef = useRef(null);
 
   useEffect(() => {
     if (!helpOpen) return;
@@ -75,8 +89,12 @@ export function Card({ title, sub, badge, badgeClass = "", children, expandable 
     return () => document.removeEventListener("mousedown", handler);
   }, [helpOpen]);
 
+  useEffect(() => {
+    fadeInUp(cardRef.current, { duration: 0.4, y: 8, delay: gsap.utils.random(0, 0.1) });
+  }, []);
+
   return (
-    <div className="card">
+    <div className="card" ref={cardRef}>
       <div className="card-head">
         <div>
           <div className="card-title">{title}</div>

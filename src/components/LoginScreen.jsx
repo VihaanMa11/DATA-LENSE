@@ -1,10 +1,17 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { fadeInUp } from "../motion.js";
+import { BRAND_NAME, BRAND_INITIALS } from "../../shared/brand.js";
 
 export function LoginScreen({ onLogin }) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    fadeInUp(panelRef.current, { duration: 0.55, y: 16 });
+  }, []);
 
   async function submit(event) {
     event.preventDefault();
@@ -21,9 +28,9 @@ export function LoginScreen({ onLogin }) {
 
   return (
     <main className="login-page">
-      <section className="login-panel" aria-labelledby="login-title">
-        <div className="login-brand" aria-hidden="true">DL</div>
-        <div className="login-product">DATA LENSE</div>
+      <section className="login-panel" aria-labelledby="login-title" ref={panelRef}>
+        <div className="login-brand" aria-hidden="true">{BRAND_INITIALS}</div>
+        <div className="login-product">{BRAND_NAME}</div>
         <h1 id="login-title">Sign in to your dashboard</h1>
         <p>Enter the dashboard password to access live MIS reports from your connected Google Sheet.</p>
         <form onSubmit={submit}>

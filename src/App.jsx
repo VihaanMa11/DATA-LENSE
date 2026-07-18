@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BarChart, DonutChart, LineChart } from "./components/InteractiveCharts.jsx";
 import { LoginScreen } from "./components/LoginScreen.jsx";
+import { fadeInUp, staggerFadeInUp } from "./motion.js";
+import { BRAND_NAME, BRAND_INITIALS } from "../shared/brand.js";
 import { getSession, login, logout } from "./authClient.js";
 import { SheetContext } from "./sheetContext.js";
 import { CustomerReceivables } from "./pages/CustomerReceivables.jsx";
@@ -512,6 +514,17 @@ function DashboardApp({ onLogout, onUnauthorized }) {
   const [salesFcFy, setSalesFcFy] = useState("");
   const [expFy, setExpFy] = useState("");
   const [salesmanFy, setSalesmanFy] = useState("");
+  const sidebarRef = useRef(null);
+  const topbarRef = useRef(null);
+  const mainRef = useRef(null);
+
+  // Sidebar nav and top bar animate in once, on first mount of the shell.
+  useEffect(() => {
+    if (sidebarRef.current) {
+      staggerFadeInUp(sidebarRef.current.querySelectorAll(".nav-section"), { stagger: 0.04, duration: 0.35, y: 8 });
+    }
+    fadeInUp(topbarRef.current, { duration: 0.35, y: -6 });
+  }, []);
 
   const onConnected = (url, dashboard) => {
     try { localStorage.setItem("dl_sheet_url", url); } catch { /* storage unavailable */ }
@@ -555,18 +568,23 @@ function DashboardApp({ onLogout, onUnauthorized }) {
     return { txs, parties, states, groups };
   }, [data]);
 
+  // Re-fade the main content area every time the visible section changes.
+  useEffect(() => {
+    fadeInUp(mainRef.current, { duration: 0.3, y: 8 });
+  }, [filters.section]);
+
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const activeNav = NAV.find(([id]) => id === filters.section);
-  const companyName = data?.company || "MLH GOBONGO PVT. LTD.";
+  const companyName = data?.company || BRAND_NAME;
   const refreshLabel = data?.generatedAt ? `Last refresh ${data.generatedAt}` : "Waiting for connected data";
   const periodRange = selectedFy;
 
   return (
     <div className={`app-shell ${mobileNavOpen ? "nav-open" : ""}`}>
-      <aside className="sidebar">
+      <aside className="sidebar" ref={sidebarRef}>
         <div className="brand">
-          <div className="logo">DL</div>
-          <div className="brand-title">DATA LENSE MLH</div>
+          <div className="logo">{BRAND_INITIALS}</div>
+          <div className="brand-title">{BRAND_NAME}</div>
         </div>
         <div className="nav-block">
           {NAV_GROUPS.map(([group, items]) => (
@@ -585,7 +603,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
       <button className="nav-scrim" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} />
 
       <div className="content-shell">
-        <header className="topbar">
+        <header className="topbar" ref={topbarRef}>
           <div className="company-line">
             <button className="hamburger" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">=</button>
             <div>
@@ -605,7 +623,7 @@ function DashboardApp({ onLogout, onUnauthorized }) {
           </div>
         </header>
 
-        <main className="main">
+        <main className="main" ref={mainRef}>
           {error && <div className="error-box">{error}</div>}
           {data?.cloudMode && <div className="error-box info-box">{data.cloudMessage}</div>}
           <div className="page-head">
@@ -808,7 +826,7 @@ export default function App() {
   }
 
   if (authState === "checking") {
-    return <main className="auth-checking"><div className="login-brand" aria-hidden="true">DL</div><span>Checking secure session...</span></main>;
+    return <main className="auth-checking"><div className="login-brand" aria-hidden="true">{BRAND_INITIALS}</div><span>Checking secure session...</span></main>;
   }
   if (authState === "logged-out") return <LoginScreen onLogin={handleLogin} />;
   return <DashboardApp onLogout={handleLogout} onUnauthorized={becomeLoggedOut} />;
