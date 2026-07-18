@@ -11,7 +11,10 @@ import { buildCustomerAnalysis } from "../server/customerAnalysisBuilder.js";
 //   Lost      - active FY1 only: 40k, 0, 0
 //   New       - first active FY3: 0, 0, 70k
 //   Recovered - active FY1, silent FY2, back FY3: 30k, 0, 35k
-//   AtRisk    - active FY2+FY3 but declining FY3 vs FY2: 0, 90k, 50k
+//   AtRisk    - active FY2+FY3, material decline (90k -> 50k, run-rate) AND gone quiet:
+//               its one FY3 order lands in month 1 (2026-04), while every other real
+//               customer's last FY3 order is >90 days later, so as of the FY3 "as of"
+//               date it is both stale and materially down vs its own FY2 run rate.
 //   Cash      - walk-in, excluded in all FYs
 //
 // FYs: FY 2024-25 (first), FY 2025-26 (mid), FY 2026-27 (last/current default)
@@ -44,7 +47,7 @@ const FIXTURE = {
     saleH("FY 2026-27", "2026-05", "Loyal",     60000),
     saleH("FY 2026-27", "2026-06", "New",       70000),
     saleH("FY 2026-27", "2026-07", "Recovered", 35000),
-    saleH("FY 2026-27", "2026-08", "AtRisk",    50000),
+    saleH("FY 2026-27", "2026-04", "AtRisk",    50000),  // stale: >90 days before the 07 "as of" date
     saleH("FY 2026-27", "2026-09", "Cash",       5000),  // EXCLUDED
     saleH("FY 2026-27", "2026-10", "CASH",       3000),  // case-insensitive EXCLUDED
   ],
@@ -164,12 +167,46 @@ describe("buildCustomerAnalysis", () => {
     assert.equal(row.segment, "Recovered");
   });
 
-  // 14. Segment: AtRisk (declining: 90k -> 50k)
+  // 14. Segment: AtRisk (stale AND materially declining — both components required)
   it("classifies AtRisk correctly", () => {
     const r = buildCustomerAnalysis(FIXTURE);
     const row = r.table.find((t) => t.name === "AtRisk");
     assert.ok(row, "AtRisk in table");
     assert.equal(row.segment, "AtRisk");
+  });
+
+  // 14b. AtRisk requires BOTH recency and decline, not either alone
+  it("does not flag Loyal (flat, recent) as AtRisk", () => {
+    const r = buildCustomerAnalysis(FIXTURE);
+    const row = r.table.find((t) => t.name === "Loyal");
+    assert.notEqual(row.segment, "AtRisk", "flat spend + recent order must not be at-risk");
+  });
+
+  it("does not flag New (brand-new, first activity is currentFy) as AtRisk", () => {
+    const r = buildCustomerAnalysis(FIXTURE);
+    const row = r.table.find((t) => t.name === "New");
+    assert.notEqual(row.segment, "AtRisk", "a brand-new customer has no trailing baseline to decline from");
+  });
+
+  // 14c. AtRisk surfaces its two component reasons
+  it("surfaces recencyDays and declinePct as explainable reasons", () => {
+    const r = buildCustomerAnalysis(FIXTURE);
+    const row = r.table.find((t) => t.name === "AtRisk");
+    assert.ok(row.atRiskReasons, "atRiskReasons must be present");
+    assert.equal(typeof row.atRiskReasons.recencyDays, "number");
+    assert.ok(row.atRiskReasons.recencyDays > 90, "recency gap must exceed the 90-day threshold");
+    assert.equal(typeof row.atRiskReasons.declinePct, "number");
+    assert.ok(row.atRiskReasons.declinePct >= 30, "decline must be material (>=30%)");
+    assert.equal(row.atRiskReasons.recencyFlag, true);
+    assert.equal(row.atRiskReasons.declineFlag, true);
+  });
+
+  // 14d. AtRisk realigns when the FY toggle changes — evaluated as of FY 2025-26,
+  // AtRisk's own current FY, it can't be at-risk against itself (no self-decline).
+  it("re-evaluates AtRisk relative to whichever FY is selected", () => {
+    const r = buildCustomerAnalysis(FIXTURE, { fy: "FY 2025-26" });
+    const row = r.table.find((t) => t.name === "AtRisk");
+    assert.notEqual(row.segment, "AtRisk", "AtRisk's first FY of activity can't decline against itself");
   });
 
   // 15. Segment counts sum to totalCustomers3yr

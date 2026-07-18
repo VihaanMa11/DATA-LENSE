@@ -103,3 +103,51 @@ test("itemGroups: empty input safe", () => {
   assert.equal(r.table.length, 0);
   assert.equal(r.kpis.activeGroups.countCurrentFy, 0);
 });
+
+// ---------------------------------------------------------------------------
+// Item 4: YoY chart cleanup — sorted by magnitude, capped with an Others bucket,
+// and brand-new groups (no prior-year revenue) excluded rather than shown as a
+// misleading 0% bar.
+// ---------------------------------------------------------------------------
+function bigYoyFixture() {
+  const f = [];
+  const m1 = ["2024-04","2024-05","2024-06","2024-07","2024-08","2024-09","2024-10","2024-11","2024-12","2025-01","2025-02","2025-03"];
+  const m2 = ["2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03"];
+  // 15 material groups present in both FY1 and FY2, at descending revenue scale,
+  // each with a distinct growth rate — the biggest ones must anchor the chart.
+  for (let i = 0; i < 15; i++) {
+    const g = `GROUP-${i}`;
+    const base = 1000000 - i * 60000; // descending magnitude
+    m1.forEach((m) => f.push(sale(FY1, m, g, "P1", `${g}-sku`, 1, base / 12)));
+    m2.forEach((m) => f.push(sale(FY2, m, g, "P1", `${g}-sku`, 1, (base * 1.1) / 12))); // uniform +10%
+  }
+  // A brand-new group in FY2 only — no FY1 revenue, must NOT appear as a fake "0%".
+  m2.forEach((m) => f.push(sale(FY2, m, "BRAND-NEW", "P1", "new-sku", 1, 2000000 / 12)));
+  return { itemFacts: f, ledgerFacts: [] };
+}
+
+test("itemGroups: YoY chart caps the group list and folds the tail into Others", () => {
+  const r = buildItemGroups(bigYoyFixture(), { fy: FY2 });
+  assert.ok(r.yoy.length <= 11, `expected <=10 groups + Others, got ${r.yoy.length}`);
+  assert.ok(r.yoy.some((y) => y.isOthers), "long tail must be folded into an Others bucket");
+});
+
+test("itemGroups: YoY chart is sorted by revenue magnitude, biggest group first", () => {
+  const r = buildItemGroups(bigYoyFixture(), { fy: FY2 });
+  const nonOthers = r.yoy.filter((y) => !y.isOthers);
+  assert.equal(nonOthers[0].group, "GROUP-0", "the largest-revenue group must lead the chart");
+});
+
+test("itemGroups: brand-new group (no prior-year revenue) is excluded, not shown as 0%", () => {
+  const r = buildItemGroups(bigYoyFixture(), { fy: FY2 });
+  assert.ok(!r.yoy.some((y) => y.group === "BRAND-NEW"), "a group with no FY1 revenue has no defined YoY% and must not appear");
+});
+
+test("itemGroups: Others bucket uses a real weighted %, not an average of percentages", () => {
+  const r = buildItemGroups(bigYoyFixture(), { fy: FY2 });
+  const others = r.yoy.find((y) => y.isOthers);
+  assert.ok(others, "Others bucket must exist for the 5 tail groups");
+  // Every underlying group grows uniformly +10%, so the pooled Others % must also be +10%,
+  // regardless of how many groups are folded in.
+  assert.equal(others.pct, 10);
+});

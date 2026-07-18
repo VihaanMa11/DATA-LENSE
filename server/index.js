@@ -31,6 +31,7 @@ import { buildExpenseAnalysis } from "./expenseAnalysisBuilder.js";
 import { buildProductForecast } from "./productForecastBuilder.js";
 import { buildGeoAnalysis } from "./geoAnalysisBuilder.js";
 import { buildProductAnalysis } from "./productAnalysisBuilder.js";
+import { buildSalesmanAnalysis } from "./salesmanAnalysisBuilder.js";
 import { fetchGoogleWorkbook, workbookSignature, extractGoogleSheetId } from "./googleSheetsSource.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -339,6 +340,16 @@ async function createApp() {
       const dash = await fetchDashboard(sheetUrl);
       const fy = String(req.query.fy || "").trim();
       res.json(buildProductAnalysis(dash, fy ? { fy } : {}));
+    } catch (e) { next(e); }
+  });
+
+  app.get("/api/salesman-analysis", async (req, res, next) => {
+    try {
+      const sheetUrl = requireSheet(req, res);
+      if (!sheetUrl) return;
+      const dash = await fetchDashboard(sheetUrl);
+      const fy = String(req.query.fy || "").trim();
+      res.json(buildSalesmanAnalysis(dash, fy ? { fy } : {}));
     } catch (e) { next(e); }
   });
 

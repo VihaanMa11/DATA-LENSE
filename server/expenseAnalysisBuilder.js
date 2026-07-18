@@ -25,16 +25,22 @@ function deltaPct(cur, prev) { if (!prev) return 0; return roundInt(((cur - prev
 const isExpenseGroup = (g) => /expenses\s*\(indirect|expenses\s*\(direct|against salary|creditor for exp|retail meet/i.test(String(g || ""));
 
 // Classify an expense account by name.
+//
+// The account master uses free-text names typed by different people over 3 years
+// (typos, abbreviations, "-FACTORY STAF" vs "-FACTORY EMPLOYEE"), so each rule below
+// was checked against the real chart of accounts and widened to catch the specific
+// variants found there (e.g. EPF/ESIC employer contributions and named factory staff
+// accounts were previously falling into "Other" instead of "Salary").
 export function expenseCategory(name) {
   const n = String(name || "").toUpperCase();
   if (/SUSPENSE/.test(n)) return "Suspense";
-  if (/SALARY|WAGES|STAFF|BONUS/.test(n)) return "Salary";
+  if (/SALARY|WAGES|STAFF?\b|BONUS|\bEPF\b|\bESIC\b|PROVIDENT|EMPLOYEE/.test(n)) return "Salary";
   if (/RENT/.test(n)) return "Rent";
-  if (/DELIVERY|TRANSPORT|CARRIAGE|FREIGHT|LOADING|UNLOADING/.test(n)) return "Logistics";
+  if (/DELIVERY|TRANSPORT|CARRIAGE|FREIGHT|LOADING|UNLOADING|COURIER|POSTAGE/.test(n)) return "Logistics";
   if (/ELECTRIC|GENERATOR|POWER|WATER|FUEL/.test(n)) return "Utilities";
   if (/PROMOTION|SCHEME|FESTIVAL|ADVERTIS|PUBLICITY|DISCOUNT|MEET/.test(n)) return "Marketing";
   if (/INTEREST|BANK CHARGE|FINANCE/.test(n)) return "Finance";
-  if (/PRINT|STATIONERY|PROFESSIONAL|INSURANCE|TRAVEL|CONVEYANCE|TEA|TIFFIN|OFFICE|LEGAL|AUDIT|STITCH|LABOUR/.test(n)) return "Admin";
+  if (/PRINT|STATIONERY|PROFESSIONAL|INSURANCE|TRAVEL|CONVEYANCE|TEA|TIFFIN|OFFICE|LEGAL|AUDIT|STITCH|LABOUR|ADMIN|ACCOUNT|TELEPHONE|PHONE|REPAIR|MAINTAIN|LICEN|SUBSCRIPTION|PACKING|JOBWORK|CONSUMABLE|GENERAL/.test(n)) return "Admin";
   return "Other";
 }
 const FIXED_CATS = new Set(["Salary", "Rent", "Finance"]);
@@ -108,8 +114,35 @@ export function buildExpenseAnalysis(dashData, options = {}) {
   };
   const curCats = catOf(currentFy);
   const CAT_ORDER = ["Salary", "Suspense", "Marketing", "Admin", "Rent", "Logistics", "Utilities", "Finance", "Other"];
-  const categoryMix = CAT_ORDER.filter((c) => (curCats.get(c) || 0) > 0)
+
+  // ---- Category mix (sorted by magnitude, tiny categories collapsed into Other) ----
+  // Suspense is always shown on its own regardless of size — it's a P&L-distortion
+  // flag, not a spending category, and hiding it inside "Other" would bury the exact
+  // thing the Suspense alert is warning about. Everything else below the materiality
+  // threshold folds into "Other" so the mix stays a handful of clean slices instead of
+  // slivers for whichever category happens to be small that year.
+  const MIX_MATERIALITY_PCT = 3;
+  const categoryMixRaw = CAT_ORDER.filter((c) => (curCats.get(c) || 0) > 0)
     .map((c) => ({ category: c, value: Math.round(curCats.get(c)), pct: totalExpenses > 0 ? round1((curCats.get(c) / totalExpenses) * 100) : 0 }));
+  const mixKeep = categoryMixRaw.filter((c) => c.category === "Suspense" || c.category === "Other" || c.pct >= MIX_MATERIALITY_PCT);
+  const mixCollapse = categoryMixRaw.filter((c) => c.category !== "Suspense" && c.category !== "Other" && c.pct < MIX_MATERIALITY_PCT);
+  const categoryMix = [...mixKeep];
+  if (mixCollapse.length > 0) {
+    const collapsedValue = mixCollapse.reduce((s, c) => s + c.value, 0);
+    const existingOther = categoryMix.find((c) => c.category === "Other");
+    if (existingOther) {
+      existingOther.value += collapsedValue;
+      existingOther.pct = totalExpenses > 0 ? round1((existingOther.value / totalExpenses) * 100) : 0;
+      existingOther.collapsedFrom = mixCollapse.map((c) => c.category);
+    } else {
+      categoryMix.push({
+        category: "Other", value: collapsedValue,
+        pct: totalExpenses > 0 ? round1((collapsedValue / totalExpenses) * 100) : 0,
+        collapsedFrom: mixCollapse.map((c) => c.category),
+      });
+    }
+  }
+  categoryMix.sort((a, b) => b.value - a.value);
 
   const salaryTotal = curCats.get("Salary") || 0;
   const suspenseTotal = curCats.get("Suspense") || 0;

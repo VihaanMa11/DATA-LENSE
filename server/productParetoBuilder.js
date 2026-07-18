@@ -139,13 +139,23 @@ export function buildProductPareto(dashData, options = {}) {
     const e = curMap.get(sku);
     return e && e.sales > 0 && daysSince(e.lastSaleDate) > 90;
   });
-  // slow movers grouped by item group
+  // Slow movers grouped by item group, capped to the top groups by count with the
+  // long tail folded into a single "Other groups" bucket — otherwise a catalogue with
+  // dozens of item groups turns this chart into an unreadable scatter of 1-2 count bars.
+  const MAX_SLOW_MOVER_GROUPS = 8;
   const slowByGroup = new Map();
   for (const sku of slowMovers) {
     const g = curMap.get(sku)?.group || "Other";
     slowByGroup.set(g, (slowByGroup.get(g) || 0) + 1);
   }
-  const slowMoversByGroup = [...slowByGroup.entries()].sort((a, b) => b[1] - a[1]).map(([group, count]) => ({ group, count }));
+  const slowGroupsRanked = [...slowByGroup.entries()].sort((a, b) => b[1] - a[1]);
+  const slowGroupsHead = slowGroupsRanked.slice(0, MAX_SLOW_MOVER_GROUPS);
+  const slowGroupsTail = slowGroupsRanked.slice(MAX_SLOW_MOVER_GROUPS);
+  const slowMoversByGroup = slowGroupsHead.map(([group, count]) => ({ group, count }));
+  if (slowGroupsTail.length > 0) {
+    const tailCount = slowGroupsTail.reduce((s, [, c]) => s + c, 0);
+    slowMoversByGroup.push({ group: `Other groups (${slowGroupsTail.length})`, count: tailCount, isOthers: true });
+  }
 
   // ---- Return rate per SKU (current FY) ----
   const returnRate = (sku, fy) => {
@@ -250,6 +260,10 @@ export function buildProductPareto(dashData, options = {}) {
   return {
     fy: currentFy, fyList, currentFy, prevFy, partialFys,
     kpis, alerts, pareto, mrpBands, slowMoversByGroup, zones, seasonTop10, qualityIssues, table,
+    dataNotes: [
+      "Pareto head/tail is a cumulative-contribution cutoff: SKUs are ranked by current-FY net revenue and the head is however many it takes for the running total to reach 50% / 80% of revenue.",
+      "A slow mover is a SKU with at least one sale this FY but no sale in the 90 days before the FY's last transaction date.",
+    ],
   };
 }
 
@@ -266,5 +280,6 @@ function emptyResult({ fy }) {
     },
     alerts: [], pareto: { skus: [], bars: [], cumulative: [] },
     mrpBands: [], slowMoversByGroup: [], zones: [], seasonTop10: [], qualityIssues: [], table: [],
+    dataNotes: [],
   };
 }
