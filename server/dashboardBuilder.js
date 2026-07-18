@@ -3,6 +3,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import XLSX from "xlsx";
 import { resolveGoogleTabName, validateGoogleWorkbook } from "./googleSheetsSource.js";
+import { BRAND_NAME } from "../shared/brand.js";
 
 const ITEM_FACT_FILES = {
   Sales: "Sales25.csv",
@@ -393,7 +394,7 @@ function buildDashboardFromSources(files, sourceType) {
 
   return {
     generatedAt: new Date().toISOString().replace("T", " ").slice(0, 19),
-    company: "MLH GOBONGO PVT. LTD.",
+    company: BRAND_NAME,
     periodLabel: [...new Set([...itemFacts, ...ledgerFacts].map((row) => row.fy).filter(Boolean))].join(", ") || "FY 2025-26",
     financialYears: [...new Set([...itemFacts, ...ledgerFacts].map((row) => row.fy).filter(Boolean))].sort(),
     itemFacts,

@@ -3991,3 +3991,93 @@ tbody tr:hover td { background: var(--blue-soft); }
   color: var(--text, #1a1a1a);
   cursor: pointer;
 }
+
+/* ============================================================
+   MINIMAL PROFESSIONAL REDESIGN (appended) — calmer surfaces,
+   flatter accents, quieter shadows. Overrides the layers above
+   without touching structure/layout, so every page inherits it.
+   ============================================================ */
+
+:root {
+  --shadow: 0 10px 24px rgba(16, 24, 40, 0.08);
+  --shadow-soft: 0 2px 8px rgba(16, 24, 40, 0.05);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px rgba(16, 24, 40, 0.04);
+  --radius: 10px;
+  --radius-sm: 8px;
+}
+
+body {
+  background: var(--bg);
+}
+
+.login-page,
+.auth-checking {
+  background: var(--bg);
+}
+
+.login-panel {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.login-brand {
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+
+.login-submit {
+  box-shadow: none;
+}
+.login-submit:hover:not(:disabled) { box-shadow: var(--shadow-soft); }
+
+/* Sidebar: flat mark, quiet active state */
+.logo {
+  background: var(--blue);
+  box-shadow: none;
+}
+
+.nav-btn.active,
+.nav-group.active {
+  background: var(--blue);
+  box-shadow: none;
+}
+.nav-btn:hover,
+.nav-group:hover {
+  box-shadow: none;
+}
+
+/* Top bar: less glow */
+.digital-ceo,
+.export-btn,
+.top-button {
+  box-shadow: none;
+}
+.digital-ceo:hover,
+.export-btn:hover,
+.top-button:hover {
+  box-shadow: var(--shadow-soft);
+}
+
+/* KPI tiles: drop the decorative wave, keep the flat tone rail */
+.k-wave { display: none; }
+.kpi {
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.kpi:hover { box-shadow: var(--shadow-soft); transform: translateY(-2px); }
+
+.ceo-kpi { box-shadow: var(--shadow-card); }
+
+/* Cards: quieter elevation */
+.card:hover {
+  box-shadow: var(--shadow-soft);
+}
+
+.btn-export {
+  box-shadow: none;
+}
+.btn-export:hover { box-shadow: var(--shadow-soft); transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi, .ceo-kpi, .nav-btn, .card { transition: none; }
+}

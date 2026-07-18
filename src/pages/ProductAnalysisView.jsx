@@ -400,7 +400,7 @@ export function ProductAnalysisView() {
   return (
     <div className="ig-wrap pa-dashboard">
       <div className="ceo-header-row pa-topbar">
-        <SectionHead code="PA" title="Product Analysis Dashboard" sub="MLH Gobongo Pvt. Ltd. · FY 2024-25 actual · 652 SKUs · 24 item groups · excl. Milon Shoe House" />
+        <SectionHead code="PA" title="Product Analysis Dashboard" sub="FY 2024-25 actual · 652 SKUs · 24 item groups · excl. Milon Shoe House" />
         <div className="pa-top-selects">
           <Select label="FY" value={fy} onChange={setFy} options={FY_OPTIONS} />
           <Select label="Half" value={half} onChange={setHalf} options={[{ key: "all", label: "Full Year" }, { key: "H1", label: "H1 Apr-Sep" }, { key: "H2", label: "H2 Oct-Mar" }]} />
