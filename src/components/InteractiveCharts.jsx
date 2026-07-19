@@ -21,13 +21,13 @@ export function BarChart({ rows }) {
 
   const options = {
     chart: baseChart("bar"),
-    colors: ["#2563eb"],
+    colors: ["#7c5cff"],
     plotOptions: {
       bar: { horizontal: true, borderRadius: 6, borderRadiusApplication: "end", barHeight: "62%", distributed: false },
     },
     fill: {
       type: "gradient",
-      gradient: { type: "horizontal", shade: "light", gradientToColors: ["#60a5fa"], stops: [0, 100], opacityFrom: 1, opacityTo: 1 },
+      gradient: { type: "horizontal", shade: "light", gradientToColors: ["#b3a1ff"], stops: [0, 100], opacityFrom: 1, opacityTo: 1 },
     },
     dataLabels: { enabled: false },
     grid: { borderColor: GRID, strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },

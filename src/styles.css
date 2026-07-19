@@ -4081,3 +4081,218 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .kpi, .ceo-kpi, .nav-btn, .card { transition: none; }
 }
+
+/* ============================================================
+   VIOLET REFERENCE-STYLE REDESIGN (appended)
+   Matches a "purple SaaS admin dashboard" reference: violet
+   primary accent, pastel KPI icon chips, solid pill nav, rounder
+   cards, lavender-tinted page background. Overrides tokens +
+   the handful of hardcoded (non-token) blue values below it, so
+   every page inherits it without per-page changes.
+   ============================================================ */
+
+:root {
+  --blue: #7c5cff;
+  --blue-dark: #6d4ceb;
+  --blue-soft: #f2effe;
+  --bg: #f6f5fb;
+  --line: #ece8f5;
+  --radius: 16px;
+  --radius-sm: 11px;
+}
+
+body { background: var(--bg); }
+
+/* ---- stray hardcoded blues that don't read the tokens above ---- */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline-color: rgba(124, 92, 255, 0.22);
+}
+.tiny-select {
+  color: var(--blue-dark);
+  border-color: #d9cffc;
+}
+.export-btn {
+  color: var(--blue-dark);
+  background: var(--blue-soft);
+  border-color: #cabbfa;
+}
+.source-tabs button[aria-selected="true"] {
+  color: var(--blue-dark);
+}
+.chart-controls button:hover:not(:disabled),
+.chart-controls button:focus-visible {
+  border-color: #c9befa;
+  outline-color: rgba(124, 92, 255, 0.18);
+}
+.bar-row:focus-visible {
+  outline-color: rgba(124, 92, 255, 0.28);
+}
+.info-box {
+  color: var(--blue-dark);
+  border-color: #d9cffc;
+  background: var(--blue-soft);
+}
+
+/* ---- Sidebar: friendlier brand block, solid pill active state ---- */
+.brand { align-items: flex-start; flex-direction: column; gap: 2px; margin-bottom: 22px; }
+.brand > .logo { order: -1; margin-bottom: 8px; }
+.logo { border-radius: 11px; }
+.brand-title { font-size: 15px; }
+.brand-tagline {
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.nav-btn { border-radius: 12px; }
+.nav-btn.active,
+.nav-group.active { background: var(--blue); }
+
+/* ---- Top bar / page header ---- */
+.company-title { font-weight: 700; font-size: 21px; }
+.tiny-select {
+  border-radius: 999px;
+  background: var(--blue-soft);
+}
+.digital-ceo { border-radius: 10px; }
+.icon-btn:not(.help-btn) {
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+.page-head h1 { font-weight: 700; }
+
+/* ---- Cards: rounder, airier ---- */
+.card { border-radius: var(--radius); }
+.card-head { margin-bottom: 4px; }
+
+/* ---- KPI tiles: pastel rounded-square accent chip, cycling tones ---- */
+.kpi-grid .ceo-kpi { padding-top: 52px; border-radius: var(--radius); }
+.kpi-grid .ceo-kpi::before {
+  left: 16px;
+  top: 14px;
+  bottom: auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tone, var(--blue)) 16%, #ffffff);
+  opacity: 1;
+}
+.kpi-grid .ceo-kpi:nth-child(5n+1) { --tone: #7c5cff; }
+.kpi-grid .ceo-kpi:nth-child(5n+2) { --tone: #2563eb; }
+.kpi-grid .ceo-kpi:nth-child(5n+3) { --tone: #12b76a; }
+.kpi-grid .ceo-kpi:nth-child(5n+4) { --tone: #f59e0b; }
+.kpi-grid .ceo-kpi:nth-child(5n+5) { --tone: #ec4899; }
+
+/* ---- Donut / chart modal / misc rounding ---- */
+.chart-modal { border-radius: 20px; }
+.badge { letter-spacing: 0.02em; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ceo-kpi, .card, .nav-btn { transition: none; }
+}
+
+/* ============================================================
+   SIDEBAR: icons, collapsible rail, hidden scrollbar (appended)
+   ============================================================ */
+
+/* Real SVG icons replace the old CSS-drawn search glyph. */
+.icon-btn.search-action::before,
+.icon-btn.search-action::after { content: none; }
+.icon-btn.search-action,
+.icon-btn:not(.help-btn) {
+  display: inline-grid;
+  place-items: center;
+}
+.icon-glyph { display: inline-flex; }
+.icon-glyph svg { width: 100%; height: 100%; display: block; }
+
+/* No visible scrollbar on the sidebar — it still scrolls (wheel/touch),
+   the track/thumb are just not rendered. */
+.sidebar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar::-webkit-scrollbar { display: none; }
+
+.app-shell {
+  transition: grid-template-columns 200ms ease;
+}
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 76px minmax(0, 1fr);
+}
+.sidebar.collapsed { width: 76px; padding-left: 10px; padding-right: 10px; }
+
+.brand { position: relative; flex-direction: row; align-items: center; gap: 10px; }
+.brand > .logo { order: 0; margin-bottom: 0; }
+.brand-copy { min-width: 0; }
+.sidebar.collapsed .brand-copy,
+.sidebar.collapsed .nav-title,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .sidebar-user-copy,
+.sidebar.collapsed .logout-button { display: none; }
+.sidebar.collapsed .brand { justify-content: center; }
+.sidebar.collapsed .sidebar-toggle { position: static; margin-left: 0; }
+.sidebar.collapsed .nav-btn { grid-template-columns: 1fr; justify-items: center; padding-left: 8px; padding-right: 8px; }
+.sidebar.collapsed .sidebar-user { justify-content: center; padding-left: 8px; padding-right: 8px; }
+
+.sidebar-toggle {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.sidebar-toggle:hover { color: var(--blue-dark); background: var(--blue-soft); }
+.sidebar-toggle .icon-glyph { transition: transform 200ms ease; }
+.sidebar-toggle .flipped { transform: rotate(180deg); }
+
+.nav-icon { flex: 0 0 auto; color: currentColor; opacity: 0.85; }
+.nav-btn.active .nav-icon { opacity: 1; }
+.nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Sidebar-bottom profile chip (moved out of the top bar). */
+.nav-block { flex: 1 1 auto; }
+.sidebar-user {
+  margin-top: 12px;
+  padding: 10px 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sidebar-user-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--blue-dark);
+  background: var(--blue-soft);
+}
+.sidebar-user-copy { min-width: 0; }
+.sidebar-user-name { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-user-role { font-size: 11px; color: var(--faint); }
+.sidebar-user .logout-button { margin-left: auto; flex: 0 0 auto; }
+
+@media (max-width: 1180px) {
+  .app-shell.sidebar-collapsed { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+  .sidebar.collapsed { width: var(--sidebar); padding-left: 14px; padding-right: 14px; }
+  .sidebar.collapsed .brand-copy,
+  .sidebar.collapsed .nav-title,
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed .sidebar-user-copy,
+  .sidebar.collapsed .logout-button { display: initial; }
+  .sidebar.collapsed .nav-btn { grid-template-columns: 22px minmax(0, 1fr); justify-items: start; padding-left: 15px; }
+  .sidebar.collapsed .sidebar-user { justify-content: flex-start; }
+  .sidebar-toggle { display: none; }
+}

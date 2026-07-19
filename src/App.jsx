@@ -3,6 +3,7 @@ import { BarChart, DonutChart, LineChart } from "./components/InteractiveCharts.
 import { LoginScreen } from "./components/LoginScreen.jsx";
 import { fadeInUp, staggerFadeInUp } from "./motion.js";
 import { BRAND_NAME, BRAND_INITIALS } from "../shared/brand.js";
+import { Icon } from "./components/icons.jsx";
 import { getSession, login, logout } from "./authClient.js";
 import { SheetContext } from "./sheetContext.js";
 import { CustomerReceivables } from "./pages/CustomerReceivables.jsx";
@@ -39,46 +40,46 @@ const MONTH_ORDER = fiscalYearMonths(DEFAULT_FY);
 const MONTH_LABELS = monthLabels(MONTH_ORDER);
 const PERIOD_MONTHS = periodMonths(MONTH_ORDER);
 const QUARTERS = [["Q1", PERIOD_MONTHS.Q1], ["Q2", PERIOD_MONTHS.Q2], ["Q3", PERIOD_MONTHS.Q3], ["Q4", PERIOD_MONTHS.Q4]];
-// Sidebar organised into logical groups. Each item: [id, label].
+// Sidebar organised into logical groups. Each item: [id, label, icon].
 const NAV_GROUPS = [
   ["Overview", [
-    ["executive", "CEO View"],
+    ["executive", "CEO View", "grid"],
   ]],
   ["Sales & Customers", [
-    ["parties", "Party Analysis"],
-    ["customerreports", "Customer Reports"],
-    ["receivables", "Receivables"],
-    ["state", "State MIS"],
-    ["geoanalysis", "Geo Customer Analysis"],
-    ["salesman", "Salesman Analysis"],
+    ["parties", "Party Analysis", "users"],
+    ["customerreports", "Customer Reports", "doc"],
+    ["receivables", "Receivables", "wallet"],
+    ["state", "State MIS", "pin"],
+    ["geoanalysis", "Geo Customer Analysis", "pin"],
+    ["salesman", "Salesman Analysis", "user"],
   ]],
   ["Products & Inventory", [
-    ["items", "Item Groups"],
-    ["productpareto", "Product Pareto"],
-    ["productanalysis", "Product Analysis"],
-    ["stockmovement", "Stock Movement"],
-    ["segments", "Segment MIS"],
+    ["items", "Item Groups", "layers"],
+    ["productpareto", "Product Pareto", "bars"],
+    ["productanalysis", "Product Analysis", "trend"],
+    ["stockmovement", "Stock Movement", "repeat"],
+    ["segments", "Segment MIS", "layers"],
   ]],
   ["Purchase & Vendors", [
-    ["payables", "Vendor & Payables"],
-    ["transport", "Transport"],
+    ["payables", "Vendor & Payables", "truck"],
+    ["transport", "Transport", "truck"],
   ]],
   ["Finance", [
-    ["cash", "Cash & Bank"],
-    ["expenses", "Expense Analysis"],
-    ["adjustments", "Adjustments"],
+    ["cash", "Cash & Bank", "wallet"],
+    ["expenses", "Expense Analysis", "receipt"],
+    ["adjustments", "Adjustments", "sliders"],
   ]],
   ["Forecasting", [
-    ["salesforecast", "Sales Forecast"],
-    ["productforecast", "Product Forecast"],
+    ["salesforecast", "Sales Forecast", "trend"],
+    ["productforecast", "Product Forecast", "trend"],
   ]],
   ["Data", [
-    ["sources", "Data Sources"],
+    ["sources", "Data Sources", "database"],
   ]],
 ];
 
-// Flat lookup [id, code, label] kept for the page-header title.
-const NAV = NAV_GROUPS.flatMap(([, items]) => items.map(([id, label]) => [id, "circle", label]));
+// Flat lookup [id, icon, label] kept for the page-header title.
+const NAV = NAV_GROUPS.flatMap(([, items]) => items.map(([id, label, icon]) => [id, icon, label]));
 
 const ANALYTICS_PAGES = new Set([]);
 
@@ -544,6 +545,14 @@ function DashboardApp({ onLogout, onUnauthorized }) {
   });
   const [grossMode, setGrossMode] = useState(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem("dl_sidebar_collapsed") === "1"; } catch { return false; }
+  });
+  const toggleSidebar = () => setSidebarCollapsed((value) => {
+    const next = !value;
+    try { localStorage.setItem("dl_sidebar_collapsed", next ? "1" : "0"); } catch { /* storage unavailable */ }
+    return next;
+  });
   const availableFys = useMemo(() => {
     const fromData = data?.financialYears?.length ? data.financialYears : [];
     return fromData.length ? fromData : DEFAULT_FYS;
@@ -580,24 +589,49 @@ function DashboardApp({ onLogout, onUnauthorized }) {
   const periodRange = selectedFy;
 
   return (
-    <div className={`app-shell ${mobileNavOpen ? "nav-open" : ""}`}>
-      <aside className="sidebar" ref={sidebarRef}>
+    <div className={`app-shell ${mobileNavOpen ? "nav-open" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      <aside className={`sidebar ${sidebarCollapsed ? "collapsed" : ""}`} ref={sidebarRef}>
         <div className="brand">
           <div className="logo">{BRAND_INITIALS}</div>
-          <div className="brand-title">{BRAND_NAME}</div>
+          <div className="brand-copy">
+            <div className="brand-title">{BRAND_NAME}</div>
+            <div className="brand-tagline">Live business intelligence.</div>
+          </div>
+          <button
+            type="button"
+            className="sidebar-toggle"
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <Icon name="chevron" className={sidebarCollapsed ? "" : "flipped"} size={14} />
+          </button>
         </div>
         <div className="nav-block">
           {NAV_GROUPS.map(([group, items]) => (
             <div className="nav-section" key={group}>
               <div className="nav-title">{group}</div>
-              {items.map(([id, label]) => (
-                <button key={id} className={`nav-btn ${filters.section === id ? "active" : ""}`} onClick={() => { updateFilter("section", id); setMobileNavOpen(false); }}>
-                  <span className="nav-dot circle" />
-                  <span>{label}</span>
+              {items.map(([id, label, icon]) => (
+                <button
+                  key={id}
+                  className={`nav-btn ${filters.section === id ? "active" : ""}`}
+                  onClick={() => { updateFilter("section", id); setMobileNavOpen(false); }}
+                  title={sidebarCollapsed ? label : undefined}
+                >
+                  <Icon name={icon} className="nav-icon" />
+                  <span className="nav-label">{label}</span>
                 </button>
               ))}
             </div>
           ))}
+        </div>
+        <div className="sidebar-user">
+          <span className="sidebar-user-avatar"><Icon name="user" size={16} /></span>
+          <div className="sidebar-user-copy">
+            <div className="sidebar-user-name">Signed in</div>
+            <div className="sidebar-user-role">Admin</div>
+          </div>
+          <button type="button" className="logout-button" onClick={onLogout} title="Log out">Log out</button>
         </div>
       </aside>
       <button className="nav-scrim" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} />
@@ -613,13 +647,8 @@ function DashboardApp({ onLogout, onUnauthorized }) {
           </div>
           <div className="top-actions">
             <button className="digital-ceo" onClick={() => load(true)} disabled={loading}>Sync Data</button>
-            <button className="icon-btn search-action" aria-label="Search" />
-            <button className="icon-btn" aria-label="Notifications">!</button>
-            <div className="user-chip">
-              <span>Signed in</span>
-              <i aria-hidden="true" />
-              <button type="button" className="logout-button" onClick={onLogout}>Log out</button>
-            </div>
+            <button className="icon-btn search-action" aria-label="Search"><Icon name="search" size={16} /></button>
+            <button className="icon-btn" aria-label="Notifications"><Icon name="bell" size={16} /></button>
           </div>
         </header>
 

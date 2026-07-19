@@ -11,12 +11,12 @@ export function ParetoChart({ data, title, barLabel = "Net Sales" }) {
 
   const options = {
     chart: { ...baseChart("line"), stacked: false },
-    colors: ["#2563eb", "#f59e0b"],
+    colors: ["#7c5cff", "#f59e0b"],
     stroke: { width: [0, 3], curve: "smooth" },
     plotOptions: { bar: { columnWidth: "55%", borderRadius: 4, borderRadiusApplication: "end" } },
     fill: {
       type: ["gradient", "solid"],
-      gradient: { shade: "light", type: "vertical", opacityFrom: 0.95, opacityTo: 0.7, gradientToColors: ["#60a5fa"] },
+      gradient: { shade: "light", type: "vertical", opacityFrom: 0.95, opacityTo: 0.7, gradientToColors: ["#b3a1ff"] },
     },
     dataLabels: { enabled: false },
     markers: { size: 0, strokeColors: "#fff", hover: { size: 5 } },

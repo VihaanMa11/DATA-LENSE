@@ -19,7 +19,7 @@ export function YoyBars({ rows, fyList, valueKey = "name" }) {
     });
   });
 
-  const PALETTE = ["#2563eb", "#12b76a", "#f59e0b"];
+  const PALETTE = ["#7c5cff", "#12b76a", "#f59e0b"];
 
   return (
     <div className="yoy-table">

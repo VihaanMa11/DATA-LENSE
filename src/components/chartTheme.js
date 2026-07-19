@@ -1,6 +1,6 @@
 // Shared ApexCharts theme + formatters so every chart looks and reads identically.
 
-export const PALETTE = ["#2563eb", "#12b76a", "#f59e0b", "#ef4444", "#7c5cff", "#06b6d4", "#ec4899", "#84cc16", "#0ea5e9", "#64748b"];
+export const PALETTE = ["#7c5cff", "#12b76a", "#f59e0b", "#ef4444", "#2563eb", "#06b6d4", "#ec4899", "#84cc16", "#0ea5e9", "#64748b"];
 export const FONT = "Inter, 'Segoe UI', Roboto, Arial, sans-serif";
 export const GRID = "#e3e8f0";
 export const INK = "#5d6678";
