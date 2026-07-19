@@ -11,7 +11,7 @@ export function ScatterPlot({ data, xLabel = "Net Sales (₹L)", yLabel = "Colle
 
   const options = {
     chart: { ...baseChart("bubble") },
-    colors: ["#2563eb"],
+    colors: ["#7c5cff"],
     fill: { type: "gradient", gradient: { shade: "light", inverseColors: false, opacityFrom: 0.7, opacityTo: 0.35 } },
     dataLabels: { enabled: false },
     grid: { borderColor: GRID, strokeDashArray: 4 },
